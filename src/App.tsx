@@ -7,6 +7,7 @@ import { getTheme, setTheme, type Theme } from './theme'
 import styles from './App.module.css'
 
 const Reader = lazy(() => import('./reader/Reader'))
+const StatsView = lazy(() => import('./stats/StatsView'))
 interface Result { name:string; message:string; failed?:boolean }
 type Sort = 'added' | 'title' | 'author'
 function BookMark() { return <span className={styles.brandMark} aria-hidden="true"><i/><i/><i/></span> }
@@ -14,7 +15,7 @@ function BookMark() { return <span className={styles.brandMark} aria-hidden="tru
 export default function App() {
   const [books,setBooks] = useState<Book[]>([]), [loaded,setLoaded] = useState(false)
   const [sample,setSample] = useState(false), [query,setQuery] = useState(''), [sort,setSort] = useState<Sort>('added')
-  const [reader,setReader] = useState<Book>(), [tools,setTools] = useState(false)
+  const [reader,setReader] = useState<Book>(), [tools,setTools] = useState(false), [stats,setStats] = useState(false)
   const [results,setResults] = useState<Result[]>([]), [busy,setBusy] = useState(false), [note,setNote] = useState('')
   const fileInput = useRef<HTMLInputElement>(null), restoreInput = useRef<HTMLInputElement>(null)
   const attach = useRef<number | undefined>(undefined), dialog = useRef<HTMLDialogElement>(null)
@@ -76,11 +77,12 @@ export default function App() {
     catch (e) { setNote(errorMessage(e)) }
   }
   return <>
-    <main hidden={!!reader} className={styles.app} onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragOver(true) } }}
+    <main hidden={!!reader || stats} className={styles.app} onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragOver(true) } }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
       onDrop={e => { e.preventDefault(); setDragOver(false); void importFiles([...e.dataTransfer.files]) }}>
       <header className={styles.mast}><div className={styles.wordmark}><BookMark/>ShelfScape</div>
-        <button className={styles.tools} onClick={() => setTools(true)}>Library tools <span aria-hidden="true">☷</span></button></header>
+        <div className={styles.mastTools}><button className={styles.tools} onClick={() => setStats(true)}>Reading stats</button>
+        <button className={styles.tools} onClick={() => setTools(true)}>Library tools <span aria-hidden="true">☷</span></button></div></header>
       <div className={styles.heading}><div className={styles.titleRow}><h1>{sample ? 'Sample shelf' : 'My library'}</h1>
         <button className={styles.primary} disabled={busy} onClick={() => choose()}><span aria-hidden="true">＋</span> Import</button></div>
         <div className={styles.searchRow} onFocus={() => setEditing(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setEditing(false) }}><label className={styles.search}><i aria-hidden="true"/>
@@ -88,7 +90,7 @@ export default function App() {
           <label className={styles.sort}><span>Sort</span><select aria-label="Sort books" value={sort} onChange={e => setSort(e.target.value as Sort)}>
             <option value="added">Date added</option><option value="title">Title</option><option value="author">Author</option></select></label></div>
       </div>
-      <Shelf paused={editing || tools || busy} books={displayed} reading={!!reader} onOpen={book => book.format ? setReader(book) : choose(book.id)} label={sample ? 'Sample bookshelf' : 'Personal bookshelf'}>
+      <Shelf paused={editing || tools || busy} books={displayed} reading={!!reader || stats} onOpen={book => book.format ? setReader(book) : choose(book.id)} label={sample ? 'Sample bookshelf' : 'Personal bookshelf'}>
         {!displayed.length && <div className={styles.empty}>
           {!query && <img src={import.meta.env.BASE_URL + 'art/bookplate.jpg'} alt="" className={styles.bookplate}/>}
           <div className={styles.invitation}><h2>{query ? 'No matching books' : loaded ? 'A place for your books' : 'Opening your library…'}</h2>
@@ -121,6 +123,7 @@ export default function App() {
       <a href={import.meta.env.BASE_URL + 'samples/CREDITS.txt'} target="_blank" rel="noreferrer">Sample book credits</a>
       <p role="status">{note}</p>
     </dialog>
+    {stats && <Suspense fallback={<p>Opening stats…</p>}><StatsView books={[...books,...samples]} back={() => setStats(false)}/></Suspense>}
     {reader && <Suspense fallback={<p>Opening reader…</p>}><Reader book={reader} back={() => setReader(undefined)}/></Suspense>}
   </>
 }

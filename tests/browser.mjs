@@ -333,6 +333,25 @@ try {
   await timed.ctx.close()
   console.log('PASS reading session timing, idle cap and save on hide')
 
+  const statsCtx = await context()
+  await statsCtx.page.getByText('Explore sample shelf').click()
+  await statsCtx.page.getByRole('heading',{name:'Sample shelf'}).waitFor()
+  const now = await statsCtx.page.evaluate(() => Date.now()), day = 86_400_000
+  await seedRows(statsCtx.page,'sessions',[
+    {book:-11,start:now-day,end:now-day+300_000,active:300_000,from:0,to:0.1,advanced:0.1},
+    {book:-11,start:now-60_000,end:now,active:600_000,from:0.1,to:0.3,advanced:0.2}])
+  await seedRows(statsCtx.page,'progress',[{id:-11,fraction:0.4,words:3000,updated:now}])
+  await statsCtx.page.getByRole('button',{name:'Reading stats'}).click()
+  await statsCtx.page.getByRole('heading',{name:'Reading stats'}).waitFor()
+  await statsCtx.page.getByText('Songs of Innocence').waitFor()
+  const text = await statsCtx.page.locator('body').innerText()
+  assert.match(text,/Songs of Innocence/); assert.match(text,/Completed\s*0 of 1 books/); assert.match(text,/\d+ wpm/)
+  assert.equal(await statsCtx.page.locator('[aria-label^="'+new Date().toLocaleDateString('en-CA')+':"]').count(),1)
+  await back(statsCtx.page)
+  await statsCtx.page.getByRole('heading',{name:'Sample shelf'}).waitFor()
+  await statsCtx.ctx.close()
+  console.log('PASS stats view')
+
   const motion = await context()
   await motion.page.getByText('Explore sample shelf').click()
   await motion.page.mouse.move(0,0)
