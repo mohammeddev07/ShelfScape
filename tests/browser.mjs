@@ -64,6 +64,23 @@ async function idbRows(page,table) {
     db.close(); return rows
   },table)
 }
+async function waitForRows(page,table,test) {
+  await page.waitForFunction(async ([table,test]) => {
+    const db = await new Promise(r => { const q = indexedDB.open('shelfscape'); q.onsuccess = () => r(q.result) })
+    if (!db.objectStoreNames.contains(table)) { db.close(); return false }
+    const rows = await new Promise(r => { const g = db.transaction(table).objectStore(table).getAll(); g.onsuccess = () => r(g.result) })
+    db.close(); return new Function('rows','return ' + test)(rows)
+  },[table,test],{timeout:30_000})
+}
+// Writes fixture rows straight into IndexedDB so a block can test a feature without depending on another block.
+async function seedRows(page,table,rows) {
+  await page.evaluate(async ([table,rows]) => {
+    const db = await new Promise(r => { const q = indexedDB.open('shelfscape'); q.onsuccess = () => r(q.result) })
+    const tx = db.transaction(table,'readwrite')
+    for (const row of rows) tx.objectStore(table).put(row)
+    await new Promise(r => { tx.oncomplete = r }); db.close()
+  },[table,rows])
+}
 try {
   const migrated = await context({}, async () => {
     // v1 was created by Dexie with a native IndexedDB version of 10.

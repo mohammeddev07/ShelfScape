@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs",
+    "test:unit": "TZ=UTC node --test 'tests/unit/*.test.ts'"
   },
   "dependencies": {
     "@react-spring/three": "^10.1.2",
