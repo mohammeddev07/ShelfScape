@@ -467,19 +467,22 @@ try {
   await click(-3)
   await motion.page.waitForTimeout(150)
   assert((await z(-3)) < .05); assert((await z(-2)) > .05)
-  await motion.page.waitForTimeout(1500)
-  assert((await z(-2)) < .01); assert((await z(-3)) > 1.5)
+  // react-spring steps at most 64 ms a frame, so on slow software WebGL wait for the end state, not a fixed time.
+  const settled = (pred,arg) => motion.page.waitForFunction(pred,arg,{timeout:15000})
+  // -3 must also finish sliding to centre, or it still covers the -4 spine clicked next.
+  await settled(() => { const [a,b] = ['Book -2','Book -3'].map(n => window.testScene.getObjectByName(n).position); return a.z < .01 && b.z > 1.5 && Math.abs(b.x) < .001 })
   assert.equal(await motion.page.locator('h2').filter({hasText:'Pride and Prejudice'}).count(),1)
   const [p4,p5] = [await hit(motion.page,-4,'spine'),await hit(motion.page,-5,'spine')]
   await motion.page.mouse.click(p4.x,p4.y); await motion.page.mouse.click(p5.x,p5.y)
-  await motion.page.waitForTimeout(1500)
-  assert.deepEqual((await Promise.all([-1,-2,-3,-4,-5].map(z))).map(v => v > .05),[false,false,false,false,true])
+  await settled(() => [-1,-2,-3,-4,-5].map(id => window.testScene.getObjectByName('Book ' + id).position.z > 1.5 ? 'out' : window.testScene.getObjectByName('Book ' + id).position.z < .01 ? 'in' : '').join() === 'in,in,in,in,out')
   // Escape during a pending swap cancels it: no book comes out.
   await motion.page.getByRole('button',{name:'Next spine'}).click()
   await motion.page.getByRole('button',{name:/^Inspect /}).focus()
   await motion.page.keyboard.press('Enter'); await motion.page.keyboard.press('Escape')
-  await motion.page.waitForTimeout(1500)
-  assert.equal(await motion.page.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.z > .05).length),0)
+  const outCount = () => window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.z > .05).length
+  await settled(`(${outCount})() === 0`)
+  await motion.page.waitForTimeout(1000)   // longer than the swap delay, so a cancelled swap would have fired
+  assert.equal(await motion.page.evaluate(outCount),0)
   assert.equal(await openCount(),0)
   const corner = await motion.page.locator('canvas').boundingBox()
   await motion.page.mouse.click(corner.x + 10,corner.y + 10)

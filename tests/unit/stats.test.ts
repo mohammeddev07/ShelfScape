@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ReadingClock, ProgressTrail, summarize, countWords, formatDuration } from '../../src/stats/core.ts'
+import { ReadingClock, ProgressTrail, DaySegments, summarize, countWords, formatDuration } from '../../src/stats/core.ts'
 
 test('clock caps idle gaps and ignores paused time', () => {
   const c = new ReadingClock(0)
@@ -52,4 +52,18 @@ test('streak survives a day without reading yet; re-reading keeps completion', (
 test('empty history', () => {
   const sum = summarize([], [], at(7, 12))
   assert.equal(sum.wpm, null); assert.equal(sum.completionRate, null); assert.equal(sum.streakDays, 0); assert.equal(sum.totalMs, 0)
+})
+test('a visit across midnight saves one row per day', () => {
+  const day = Date.UTC(2026, 0, 2), min = 60_000                 // TZ=UTC in test:unit
+  const t = new ProgressTrail(.25), days = new DaySegments(day - 5 * min)
+  t.move(.5); const before = days.next(day - min, 4 * min, t)
+  assert.deepEqual(before, { fresh: false, row: { start: day - 5 * min, end: day - min, active: 4 * min, from: .25, to: .5, advanced: .25 } })
+  t.move(.75); t.move(.5); t.move(.875)                            // re-reading: advanced may exceed one book length later
+  const after = days.next(day + 2 * min, 7 * min, t)
+  assert.equal(after.fresh, true)
+  assert.equal(after.row.start, day); assert.equal(after.row.active, 3 * min); assert.equal(after.row.from, .5)
+  assert.ok(Math.abs(after.row.advanced - .625) < 1e-9)
+  assert.equal(days.next(day + 3 * min, 8 * min, t).fresh, false)
+  const s = summarize([{ book: 1, ...before.row }, { book: 1, ...after.row }], [], day + 3 * min)
+  assert.deepEqual(s.dailyMs.slice(-2).map(d => d.ms), [4 * min, 3 * min])
 })

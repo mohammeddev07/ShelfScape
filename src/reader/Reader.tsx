@@ -3,7 +3,7 @@ import { ArrowBendDownRightIcon, BookmarkSimpleIcon, CaretDownIcon, CaretLeftIco
 import { liveQuery } from 'dexie'
 import { db, original, errorMessage, type Annotation, type Book, type HighlightColor, type Location, type Progress } from '../db'
 import type { ReaderAdapter, ReaderStatus } from './adapter'
-import { FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
+import { DaySegments, FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import Toolbar from '../annotations/Toolbar'
 import NotesPanel from '../annotations/NotesPanel'
 import { setTheme, useResolvedTheme } from '../theme'
@@ -37,14 +37,18 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       const p = await db.progress.get(book.id)
       await db.progress.put({ fraction:0,...p,...patch(p),id:book.id,updated:Date.now() })
     })
-    const opened = Date.now(), clock = new ReadingClock(opened)
+    const opened = Date.now(), clock = new ReadingClock(opened), days = new DaySegments(opened)
     let trail: ProgressTrail | undefined, session: number | undefined, saving = Promise.resolve(), here = ''
     reading.current = clock
-    // Saves are chained so the first put's id is known before the next one, keeping one row per visit.
+    // Saves are chained so the first put's id is known before the next one, keeping one row per visit and day.
     const record = () => {
-      if (!trail || clock.active < MIN_SESSION_MS) return
-      const row = { book:book.id,start:opened,end:Date.now(),active:clock.active,from:trail.from,to:trail.to,advanced:trail.advanced }
-      saving = saving.then(async () => { session = await db.sessions.put(session ? { ...row,id:session } : row) }).catch(fail)
+      if (!trail) return
+      const { fresh, row } = days.next(Date.now(),clock.active,trail)
+      // Reset inside the chain so a put still in flight cannot hand the old day's id to the new row.
+      if (fresh) saving = saving.then(() => { session = undefined })
+      if (row.active < MIN_SESSION_MS) return
+      const full = { book:book.id,...row }
+      saving = saving.then(async () => { session = await db.sessions.put(session ? { ...full,id:session } : full) }).catch(fail)
     }
     const flush = () => {
       window.clearTimeout(timer); record()

@@ -22,7 +22,7 @@ export interface Session {
   start: number; end: number      // epoch ms
   active: number                  // idle-capped ms
   from: number; to: number        // progress 0..1
-  advanced: number                // forward progress excluding jumps, 0..1
+  advanced: number                // cumulative forward progress excluding jumps, ≥ 0 (re-reading can exceed 1)
 }
 export interface Progress {
   id: number; fraction: number    // Book.id; 0..1

@@ -48,7 +48,7 @@ export async function restoreBackup(file: File) {
     if (!list.every(r => r && typeof r === 'object' && valid(r))) throw new Error('Invalid reading data in backup.')
   }
   rows(manifest.sessions, (r: Session) => known(r.book) && num(r.start) && num(r.end) && r.start <= r.end && num(r.active, 0) &&
-    num(r.from, 0, 1) && num(r.to, 0, 1) && num(r.advanced, 0, 1))
+    num(r.from, 0, 1) && num(r.to, 0, 1) && num(r.advanced, 0))
   rows(manifest.progress, (r: Progress) => known(r.id) && num(r.fraction, 0, 1) && num(r.updated) &&
     (r.words === undefined || num(r.words, 0)) && (r.locations === undefined || typeof r.locations === 'string') &&
     (r.finished === undefined || num(r.finished)))

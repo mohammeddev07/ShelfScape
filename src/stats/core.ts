@@ -35,6 +35,24 @@ export class ProgressTrail {
   jump(to: number) { this.#to = to }
 }
 
+/**
+ * One visit as one row per local day: a save on a new day starts a row at midnight that carries
+ * everything since the previous save, so time after midnight counts for the new day.
+ */
+export class DaySegments {
+  #start: number
+  #base: { active: number; advanced: number; from?: number } = { active: 0, advanced: 0 }
+  #last = this.#base
+  constructor(opened: number) { this.#start = opened }
+  next(now: number, active: number, trail: ProgressTrail) {
+    const fresh = dayKey(new Date(now)) !== dayKey(new Date(this.#start))
+    if (fresh) { this.#start = new Date(now).setHours(0, 0, 0, 0); this.#base = this.#last }
+    this.#last = { active, advanced: trail.advanced, from: trail.to }
+    return { fresh, row: { start: this.#start, end: now, active: active - this.#base.active,
+      from: this.#base.from ?? trail.from, to: trail.to, advanced: trail.advanced - this.#base.advanced } }
+  }
+}
+
 // ponytail: whitespace words; CJK undercounts, use Intl.Segmenter if needed
 export const countWords = (text: string) => text.match(/\S+/g)?.length ?? 0
 
