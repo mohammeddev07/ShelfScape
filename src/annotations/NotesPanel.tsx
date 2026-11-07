@@ -38,7 +38,7 @@ export default function NotesPanel({ book,list,editing,onJump,onClose }: { book:
   }
   const items = sortAnnotations(list).filter(a => !shown.length || shown.includes(a.color))
   return <aside className={styles.notes} aria-label="Notes & highlights">
-    <header><h2>Notes & highlights</h2><button aria-label="Close notes" onClick={onClose}>×</button></header>
+    <header><h2>Notes & highlights</h2><button aria-label="Close notes" autoFocus={editing === undefined} onClick={onClose}>×</button></header>
     <div className={styles.filters} role="group" aria-label="Show colors">{COLOR_ORDER.map(c =>
       <button key={c} aria-pressed={shown.includes(c)} onClick={() => setShown(shown.includes(c) ? shown.filter(s => s !== c) : [...shown,c])}>
         <Swatch color={c}/>{COLORS[c].label}</button>)}</div>
@@ -50,7 +50,7 @@ export default function NotesPanel({ book,list,editing,onJump,onClose }: { book:
         <div role="group" aria-label="Color">{COLOR_ORDER.map(c => <button key={c} aria-label={'Change to ' + COLORS[c].label} aria-pressed={a.color === c}
           onClick={() => db.annotations.update(a.id!,{ color:c,updated:Date.now() }).catch(fail)}><Swatch color={c}/></button>)}</div>
         <Note a={a} fail={fail}/>
-        <button onClick={() => db.annotations.delete(a.id!).catch(fail)}>Delete highlight</button>
+        <button onClick={() => { db.annotations.delete(a.id!).catch(fail); onClose() }}>Delete highlight</button>
       </div> : a.note && <p>{a.note}</p>}
       <button aria-expanded={open === a.id} onClick={() => setOpen(open === a.id ? undefined : a.id)}>{open === a.id ? 'Done' : 'Edit'}</button>
     </li>)}</ol> : <p className={styles.noteEmpty}>Select text and choose a color to highlight it.</p>}

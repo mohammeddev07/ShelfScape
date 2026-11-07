@@ -163,6 +163,15 @@ try {
   const notes = await readFile(await (await exported).path(),'utf8')
   assert.match(notes,/## Idea\n> .*Little Lamb/); assert(notes.includes('Remember the lamb'))
   await page.getByRole('button',{name:'Close notes'}).click()
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),'Notes & highlights')
+  // A selection that was cleared, then a page turn: keyboard Highlight selection must not save the old passage.
+  const before = (await idbRows(page,'annotations')).length
+  await selectLamb(); await page.getByRole('toolbar',{name:'Highlight'}).waitFor()
+  await page.evaluate(() => getSelection().collapseToStart()); await page.getByRole('toolbar',{name:'Highlight'}).waitFor({state:'detached'})
+  await page.getByRole('button',{name:'Previous page'}).click(); await page.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
+  await page.getByRole('button',{name:'Reading options'}).press('Enter'); await page.getByRole('button',{name:'Highlight selection'}).press('Enter')
+  await page.getByRole('status').filter({hasText:'Select text to highlight it.'}).waitFor()
+  assert.equal((await idbRows(page,'annotations')).length,before)
   await back(page); await search.fill('Burnett'); await inspect(page); await open(page)
   await page.locator('iframe').first().waitFor()
   await page.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.body?.children.length > 0)

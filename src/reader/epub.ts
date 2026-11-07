@@ -132,7 +132,7 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
           type:mark.style === 'bookmark' ? 'underline' : 'highlight' }] : []).map(mark => [mark.type + mark.cfi + mark.style,mark]))
         for (const [id,mark] of painted) if (!next.has(id)) rendition.annotations.remove(mark.cfi,mark.type)
         for (const [id,{ key,cfi,style }] of next) if (!painted.has(id)) {
-          if (style === 'bookmark') rendition.annotations.underline(cfi,{ key },undefined,'mark-bookmark',{ stroke:'#914423','stroke-opacity':'0.8' })
+          if (style === 'bookmark') rendition.annotations.underline(cfi,{ key },undefined,'mark-bookmark')   // drawn by App.module.css
           else rendition.annotations.highlight(cfi,{ key },() => input.activate(key),'mark-' + style,
             { fill:COLORS[style].fill,'fill-opacity':'0.4','mix-blend-mode':'multiply' })
         }

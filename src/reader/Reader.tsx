@@ -14,13 +14,14 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<ReaderAdapter | null>(null)
   const selectedPassage = useRef<Location | undefined>(undefined)
   const reading = useRef<ReadingClock | null>(null), jumping = useRef(false)
-  const backButton = useRef<HTMLButtonElement>(null)
+  const backButton = useRef<HTMLButtonElement>(null), notesButton = useRef<HTMLButtonElement>(null), pressed = useRef(0)
   const [status,setStatus] = useState<ReaderStatus>(), [ready,setReady] = useState(false)
   const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNotice] = useState('')
   const [menu,setMenu] = useState(false), [page,setPage] = useState('')
   const [list,setList] = useState<Annotation[]>([]), [picked,setPicked] = useState<DOMRect>()
   const [panel,setPanel] = useState(false), [editing,setEditing] = useState<number>()
   const edit = (id?: number) => { if (id) { setEditing(id); setPanel(true) } }
+  const closePanel = () => { setPanel(false); notesButton.current?.focus() }
   useEffect(() => {
     const sub = liveQuery(() => db.annotations.where({ book:book.id }).toArray()).subscribe({ next:setList,error:e => setError(errorMessage(e)) })
     return () => sub.unsubscribe()
@@ -60,8 +61,10 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       controller.signal.throwIfAborted()
       const reader = await open({ file,element:host.current!,saved:saved?.location,locations:known?.locations,signal:controller.signal,error:fail,
         // Keep the passage too: on touch, tapping the toolbar can clear the selection before the click lands.
+        // A selection cleared any other way is forgotten, so keyboard actions never reach a stale passage.
         select(active) {
           if (active) selectedPassage.current = adapter.current?.location(true)
+          else if (Date.now() - pressed.current > 1000) selectedPassage.current = undefined
           setPicked(active ? adapter.current?.selectionRect() : undefined)
         },
         activate(key) { if (key !== 'bookmark') edit(Number(key)) },
@@ -72,7 +75,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
           const key = JSON.stringify(location)
           if (key === here) trail?.jump(fraction)
           else {
-            here = key; clock.touch(Date.now())
+            here = key; clock.touch(Date.now()); selectedPassage.current = undefined
             if (!trail) trail = new ProgressTrail(fraction)
             else if (jumping.current) trail.jump(fraction)
             else trail.move(fraction)
@@ -131,15 +134,17 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       setNotice(location.text ? 'Passage bookmarked.' : 'Reading position bookmarked.')
     }
   }
-  return <main className={styles.reader} onPointerDown={touch} onWheel={touch} onKeyDown={e => {
+  return <main className={styles.reader} onPointerDownCapture={e => {
+    if ((e.target as Element).closest('[role=toolbar],.' + styles.readerMenu)) pressed.current = Date.now()
+  }} onPointerDown={touch} onWheel={touch} onKeyDown={e => {
     touch()
-    if (e.key === 'Escape') { if (menu) setMenu(false); else if (panel) setPanel(false); else back() }
+    if (e.key === 'Escape') { if (menu) setMenu(false); else if (panel) closePanel(); else back() }
     if (e.target === host.current && ['ArrowLeft','ArrowRight'].includes(e.key)) {
       e.preventDefault(); run(adapter.current?.step(e.key === 'ArrowLeft' ? -1 : 1))
     }
   }}>
     <header className={styles.readerHeader}><button ref={backButton} onClick={back}>‹ Library</button><h1>{book.title}</h1>
-      <div><button aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}>✎</button>
+      <div><button ref={notesButton} aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}>✎</button>
       <button onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}>•••</button></div></header>
     {menu && <aside className={styles.readerMenu}>
       <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}>Bookmark this passage</button>
@@ -155,7 +160,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     <div ref={host} className={styles.document} tabIndex={0} aria-label={book.title + ' reading area'}
       onScroll={() => { if (picked) setPicked(adapter.current?.selectionRect()) }}/>
     {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow').then(edit))}/>}
-    {panel && <NotesPanel book={book} list={list} editing={editing} onClose={() => setPanel(false)}
+    {panel && <NotesPanel book={book} list={list} editing={editing} onClose={closePanel}
       onJump={a => jump({ ...a.location,text:undefined })}/>}
     <p role="status" className={styles.readerNotice}>{notice}</p>
     <footer className={styles.readerFooter}>

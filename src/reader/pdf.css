@@ -11,3 +11,4 @@
 /* ponytail: inversion also inverts photos; per-image handling if users complain */
 :root[data-theme=dark] .pdfPage canvas{filter:invert(.88) hue-rotate(180deg)}
 :root[data-theme=dark] .highlightLayer .mark{mix-blend-mode:screen}
+:root[data-theme=dark] .highlightLayer .bookmark{mix-blend-mode:normal}

@@ -8,7 +8,7 @@ export default function Toolbar({ rect,touch,onColor,onNote }: { rect: DOMRect; 
   return <div role="toolbar" aria-label="Highlight" className={styles.toolbar} onPointerDown={e => e.preventDefault()} style={{
     left:Math.min(innerWidth - 150,Math.max(150,rect.left + rect.width / 2)),
     top:below ? Math.min(innerHeight - 124,rect.bottom + 10) : Math.max(120,rect.top - 10),transform:`translate(-50%,${below ? 0 : '-100%'})` }}>
-    {COLOR_ORDER.map(c => <button key={c} aria-label={'Highlight ' + c} title={COLORS[c].label} onClick={() => onColor(c)}>
+    {COLOR_ORDER.map(c => <button key={c} aria-label={'Highlight ' + c + ', ' + COLORS[c].label} title={COLORS[c].label} onClick={() => onColor(c)}>
       <i style={{ background:COLORS[c].fill }}/></button>)}
     <button onClick={onNote}>Add note</button>
   </div>

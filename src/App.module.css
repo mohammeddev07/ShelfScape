@@ -79,3 +79,5 @@
 :root[data-theme=dark] .document :global(svg){mix-blend-mode:screen}
 .readerFooter>div{display:flex;flex-shrink:0}
 @media(max-width:640px){.readerFooter{gap:4px}.readerFooter span{font-size:14px;text-align:center}}
+.reader>.readerMenu{z-index:6}
+.document :global(.mark-bookmark) :global(rect){stroke:none}.document :global(.mark-bookmark) :global(line){stroke:var(--rust);stroke-width:2px;stroke-opacity:1}
