@@ -59,8 +59,8 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
       }
     }
     flatten(book.navigation.toc)
-    rendition.themes.default({ body:{ color:'#33291f !important',background:'transparent !important','font-family':'Georgia,serif !important',
-      'line-height':'1.65 !important' },'a':{color:'#924324 !important'} })
+    rendition.themes.default({ body:{ color:'#202024 !important',background:'transparent !important','font-family':'"Iowan Old Style",Charter,"Palatino Linotype",Georgia,serif !important',
+      'line-height':'1.65 !important' },'a':{color:'#c2410c !important'} })
     // Scoped to the class epub.js puts on the chapter body, since selecting 'default' later does not remove these rules.
     // color-scheme matches the page's, or Chrome paints the frame an opaque white canvas.
     rendition.themes.register('night',{ ':root:has(> body.night)':{ 'color-scheme':'dark' },

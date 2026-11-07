@@ -162,6 +162,11 @@ try {
   await page.getByRole('button',{name:'Export',exact:true}).click()
   const notes = await readFile(await (await exported).path(),'utf8')
   assert.match(notes,/## Idea\n> .*Little Lamb/); assert(notes.includes('Remember the lamb'))
+  // Deleting keeps the panel open; with no next item, focus lands on the panel heading.
+  await page.getByRole('button',{name:'Delete highlight'}).click()
+  await waitForRows(page,'annotations','!rows.some(a => a.note === "Remember the lamb")')
+  await page.waitForFunction(() => document.activeElement?.matches('h2') && document.activeElement.textContent === 'Notes & highlights')
+  await page.getByText('Select text and choose a color to highlight it.').waitFor()
   await page.getByRole('button',{name:'Close notes'}).click()
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),'Notes & highlights')
   // A selection that was cleared, then a page turn: keyboard Highlight selection must not save the old passage.
@@ -171,6 +176,12 @@ try {
   await page.getByRole('button',{name:'Previous page'}).click(); await page.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
   await page.getByRole('button',{name:'Reading options'}).press('Enter'); await page.getByRole('button',{name:'Highlight selection'}).press('Enter')
   await page.getByRole('status').filter({hasText:'Select text to highlight it.'}).waitFor()
+  // The same notice again, after the first has cleared, shows a fresh pill.
+  await page.getByRole('status').filter({hasText:'Select text to highlight it.'}).waitFor({state:'detached'})
+  await page.getByRole('button',{name:'Reading options'}).press('Enter'); await page.getByRole('button',{name:'Highlight selection'}).press('Enter')
+  const pill = page.getByRole('status').locator('span',{hasText:'Select text to highlight it.'})
+  await pill.waitFor()
+  assert.equal(await pill.evaluate(s => getComputedStyle(s).opacity),'1')
   assert.equal((await idbRows(page,'annotations')).length,before)
   await back(page); await search.fill('Burnett'); await inspect(page); await open(page)
   await page.locator('iframe').first().waitFor()
