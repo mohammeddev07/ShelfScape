@@ -1,6 +1,7 @@
-import ePub, { type Contents, type Location as EpubLocation, type NavItem } from 'epubjs'
+import ePub, { EpubCFI, type Contents, type Location as EpubLocation, type NavItem } from 'epubjs'
 import type { ReaderAdapter, ReaderInput } from './adapter'
 import type { Location } from '../db'
+import { countWords } from '../stats/core'
 
 // Installed before epub.js serializes a chapter into its script-disabled iframe.
 function secureChapter(doc: Document) {
@@ -51,13 +52,33 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
       const frame = chapter.window.frameElement
       frame?.setAttribute('title',chapter.document.title || 'Book chapter')
     })
-    rendition.on('relocated',(location: EpubLocation) => {
+    const sections = (book.spine as unknown as { length: number }).length, cfi = new EpubCFI()
+    // The last TOC entry in this section whose anchor starts at or before the page.
+    // ponytail: assumes TOC and spine hrefs share a directory; resolve both against the package if a book differs.
+    function chapter({ index,href,cfi:start }: EpubLocation['start']) {
+      const view = (rendition.getContents() as unknown as Contents[]).find(c => c.sectionIndex === index)
+      let title = ''
+      for (const item of contents) {
+        const [path,id] = item.target.split('#')
+        if (path !== href) continue
+        const anchor = id && view?.document.getElementById(id)
+        if (title && !(anchor && view && cfi.compare(view.cfiFromNode(anchor),start) <= 0)) break
+        title = item.title
+      }
+      return title || 'Section ' + (index + 1)
+    }
+    let current: EpubLocation | undefined
+    const relocated = (location: EpubLocation) => {
       if (signal.aborted || !location.start?.cfi) return
-      last = { format:'epub',cfi:location.start.cfi }
-      change(last,{ label:'Section ' + (location.start.index + 1) + ' · ' + location.start.displayed.page + ' / ' + location.start.displayed.total,
-        first:location.atStart,last:location.atEnd,contents })
-    })
+      const { start } = location
+      current = location; last = { format:'epub',cfi:start.cfi }
+      change(last,{ label:'Section ' + (start.index + 1) + ' · ' + start.displayed.page + ' / ' + start.displayed.total,
+        first:location.atStart,last:location.atEnd,contents,where:chapter(start),
+        progress:book.locations.length() ? book.locations.percentageFromCfi(start.cfi) : (start.index + (start.displayed.page - 1) / start.displayed.total) / sections })
+    }
+    rendition.on('relocated',relocated)
     rendition.on('displayError',input.error)
+    if (input.locations) book.locations.load(input.locations)
     await rendition.display(input.saved?.format === 'epub' ? input.saved.cfi : undefined)
     signal.throwIfAborted()
     return {
@@ -76,6 +97,21 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
             format:'epub',cfi:content.cfiFromRange(selection.getRangeAt(0)),text:selection.toString().slice(0,512) }
         }
         return last
+      },
+      async measure(stop) {
+        if (!book.locations.length()) await book.locations.generate(1000)
+        let words = 0
+        for (let n = 0; n < sections; n++) {
+          stop.throwIfAborted()
+          const section = book.spine.get(n)
+          await section.load(book.load.bind(book))
+          words += countWords(section.document.body?.textContent ?? '')
+          section.unload()
+          await new Promise(r => setTimeout(r))
+        }
+        stop.throwIfAborted()
+        if (current) relocated(current)
+        return { words,locations:book.locations.save() }
       },
     }
   } catch (error) { cleanup(); throw error }
