@@ -485,9 +485,21 @@ try {
   await motion.page.mouse.click(corner.x + 10,corner.y + 10)
   await motion.page.getByRole('button',{name:'Open book'}).waitFor({state:'detached'})
   await motion.page.mouse.move(0,0)
-  const beforeX = await spineX(); await motion.page.waitForTimeout(1000)
-  const travelled = beforeX - await spineX()
-  assert(travelled > .08 && travelled < .16,'auto speed '+travelled)
+  // Track the book nearest the centre: the shelf loops, so Book -1 may have wrapped out of view.
+  const centred = await motion.page.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).reduce((a,b) => Math.abs(a.position.x) < Math.abs(b.position.x) ? a : b).name)
+  const bookX = () => motion.page.evaluate(n => window.testScene.getObjectByName(n).position.x,centred)
+  const beforeX = await bookX(); await motion.page.waitForTimeout(2000)
+  const travelled = beforeX - await bookX()
+  assert(travelled > .42 && travelled < .78,'auto speed '+travelled)
+  // With the first book centred, the last one sits right beside it on the left.
+  for (let i = 0; i < 18; i++) await motion.page.getByRole('button',{name:'Previous spine'}).click()
+  await motion.page.waitForFunction(() => Math.abs(window.testScene.getObjectByName('Book -1')?.position.x) < 1.5)
+  const gap = await motion.page.evaluate(() => {
+    const first = window.testScene.getObjectByName('Book -1')
+    return Math.min(...window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.x < first.position.x).map(o => first.position.x - o.position.x))
+  })
+  assert(gap < 1,'loop gap '+gap)
+  await motion.page.mouse.move(0,0)
   await motion.page.getByRole('button',{name:/^Inspect /}).focus()
   await motion.page.keyboard.press('ArrowRight')
   await motion.page.getByRole('tooltip').waitFor()
@@ -509,7 +521,7 @@ try {
   // Temporary test profiles count as incognito in branded Chrome; that is not an app defect.
   assert.deepEqual(install.installabilityErrors.filter(e => e.errorId !== 'in-incognito'),[])
   await motion.ctx.close()
-  console.log('PASS automatic movement, hover label, click to inspect, sequenced swap, auto speed, keyboard rotations, Chrome installation criteria')
+  console.log('PASS automatic movement, hover label, click to inspect, sequenced swap, auto speed, looping shelf, keyboard rotations, Chrome installation criteria')
   assert.deepEqual(errors,[])
   console.log('Browser checks passed. Artifacts in',outs)
 } finally { await browser.close() }

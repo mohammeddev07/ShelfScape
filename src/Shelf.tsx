@@ -101,8 +101,8 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
   const browseTo = (i: number) => {
     const next = Math.max(0,Math.min(books.length - 1,i)), slot = shelf.slots[next]
     if (!slot) return
-    const pos = slot.x - motion.offset
-    if (pos < .5 || pos > motion.span - 1) motion.move(slot.x - motion.span / 2 - motion.offset)
+    const pos = motion.place(slot.x)
+    if (pos < .5 || pos > motion.span - 1) motion.move(pos - motion.span / 2)
     setIndex(next); setLabel(slot.book.id)
   }
   useEffect(() => {
