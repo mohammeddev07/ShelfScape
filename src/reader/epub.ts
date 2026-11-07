@@ -34,8 +34,15 @@ function textRange(range: Range) {
 export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
   const { element,signal,change } = input
   const book = ePub({ replacements:'blobUrl' })
-  let opened = false, font = 100, last: Location | undefined
-  const cleanup = () => { if (opened) book.destroy() }
+  let opened = false, font = 100, last: Location | undefined, measuring: Promise<unknown> = Promise.resolve()
+  // book.destroy() mid-load makes the section's pending load throw "reading 'content'"; inside locations.generate()
+  // that rejection lands on a queue promise nobody handles. Drop the queued sections and destroy once the load in flight settles.
+  const cleanup = () => {
+    if (!opened) return
+    const generating = book.locations as unknown as { q?: { clear(): void } }   // epub.js internals: its task queue
+    generating.q?.clear()
+    measuring.then(() => book.destroy(),() => book.destroy())
+  }
   signal.addEventListener('abort',cleanup,{ once:true })
   try {
     await book.open(await input.file.arrayBuffer(),'binary')
@@ -133,20 +140,24 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
         const r = picked.range.getBoundingClientRect()
         return new DOMRect(r.x + frame.x,r.y + frame.y,r.width,r.height)
       },
-      async measure(stop) {
-        if (!book.locations.length()) await book.locations.generate(1000)
-        let words = 0
-        for (let n = 0; n < sections; n++) {
+      measure(stop) {
+        const run = (async () => {
+          if (!book.locations.length()) await book.locations.generate(1000)
+          let words = 0
+          for (let n = 0; n < sections; n++) {
+            stop.throwIfAborted()
+            const section = book.spine.get(n)
+            await section.load(book.load.bind(book))
+            words += countWords(section.document.body?.textContent ?? '')
+            section.unload()
+            await new Promise(r => setTimeout(r))
+          }
           stop.throwIfAborted()
-          const section = book.spine.get(n)
-          await section.load(book.load.bind(book))
-          words += countWords(section.document.body?.textContent ?? '')
-          section.unload()
-          await new Promise(r => setTimeout(r))
-        }
-        stop.throwIfAborted()
-        if (current) relocated(current)
-        return { words,locations:book.locations.save() }
+          if (current) relocated(current)
+          return { words,locations:book.locations.save() }
+        })()
+        measuring = run
+        return run
       },
     }
   } catch (error) { cleanup(); throw error }
