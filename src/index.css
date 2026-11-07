@@ -1,13 +1,17 @@
-:root{color-scheme:light;--paper:#f7f2e8;--ink:#312b23;--muted:#706458;--rust:#914423;--line:#cfc3af;--field:#fffaf34d;--surface:#fff9ef;--glow:#fffaf0;--veil:#fff6e5ed;--edge:#aa9880;--on-rust:#fff7e7;--rust-deep:#793819;--serif:Baskerville,"Iowan Old Style","Palatino Linotype",Georgia,serif;--sans:"Helvetica Neue",Arial,sans-serif;font:16px var(--serif);color:var(--ink);background:var(--paper)}
-:root[data-theme=dark]{color-scheme:dark;--paper:#1d1a16;--ink:#e9dfcf;--muted:#a89a86;--rust:#e0916a;--line:#3e362c;--field:#26221d;--surface:#2a251f;--glow:#2a241d;--veil:#1d1a16ed;--edge:#5a4f40;--on-rust:#1d1a16;--rust-deep:#f0a984}
+@font-face{font-family:Geist;src:url(/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{color-scheme:light;--paper:#f5f5f3;--surface:#fcfcfb;--field:#ececea;--ink:#18181b;--muted:#63636b;--line:#e2e2df;--rust:#c2410c;--rust-deep:#9a3412;--on-rust:#fffaf6;--glow:#f5f5f3;--edge:#d4d4d0;--veil:rgb(245 245 243 / .92);--shadow:0 1px 2px rgb(24 24 27 / .04),0 12px 32px -8px rgb(24 24 27 / .14);--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--book:"Iowan Old Style",Charter,"Palatino Linotype",Georgia,serif;--serif:var(--book);font:16px/1.5 var(--sans);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+:root[data-theme=dark]{color-scheme:dark;--paper:#111113;--surface:#1a1a1d;--field:#222226;--ink:#ececee;--muted:#9d9da6;--line:#2b2b30;--rust:#f0845c;--rust-deep:#f59e7a;--on-rust:#111113;--glow:#111113;--edge:#3a3a40;--veil:rgb(17 17 19 / .92);--shadow:0 1px 2px rgb(6 6 8 / .3),0 16px 40px -8px rgb(6 6 8 / .6)}
 *{box-sizing:border-box}
 body{margin:0;min-width:280px;background:var(--paper);color:var(--ink)}
 button,input,select{font:inherit}
 button,select,a{touch-action:manipulation}
-button{cursor:pointer;color:inherit;background:transparent;border:0}
+button{cursor:pointer;color:inherit;background:transparent;border:0;transition:background-color .18s,color .18s,border-color .18s,transform .18s}
+button:active:not(:disabled){transform:scale(.98)}
 button:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--rust);outline-offset:4px}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--rust);outline-offset:3px}
 button:hover:not(:disabled),a{color:var(--rust)}
-button,input,select{min-height:42px}
+button,input,select{min-height:40px}
 h1,h2,h3,p{margin:0}
 [hidden]{display:none!important}
+@media(max-width:640px),(pointer:coarse){button,input,select{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}button:active:not(:disabled){transform:none}}

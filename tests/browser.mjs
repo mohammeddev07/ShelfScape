@@ -14,7 +14,7 @@ const errors = []
 const pdf = resolve('public/samples/songs.pdf'), epub = resolve('public/samples/secret-garden.epub')
 const inspect = page => page.getByRole('button',{ name:/^Inspect / }).click()
 const open = page => page.getByRole('button',{name:'Open book',exact:true}).click()
-const back = page => page.getByRole('button',{name:'‹ Library'}).click()
+const back = page => page.getByRole('button',{name:/^‹? ?Library$/}).click()
 const options = page => page.getByRole('button',{name:'Reading options'}).click()
 async function context(settings = {}, init) {
   const ctx = await browser.newContext({viewport:{width:1280,height:800},...settings})
@@ -234,12 +234,12 @@ try {
 
   const night = await context({colorScheme:'dark'})
   assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'dark')
-  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(29, 26, 22)')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(17, 17, 19)')
   await night.page.getByRole('button',{name:/Library tools/}).click()
   await night.page.getByLabel('Theme').selectOption('light')
   await night.page.getByRole('button',{name:'Close library tools'}).click(); await night.page.reload()
   assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'light')
-  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(247, 242, 232)')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(245, 245, 243)')
   await night.page.getByRole('button',{name:/Library tools/}).click()
   await night.page.getByLabel('Theme').selectOption('system'); await night.page.getByRole('button',{name:'Close library tools'}).click()
   await night.ctx.close()

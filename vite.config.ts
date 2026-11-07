@@ -27,9 +27,9 @@ export default defineConfig({
   plugins:[react(),pdfAssets(),VitePWA({
     registerType:'prompt',
     manifest:{ id:'./', name:'ShelfScape',short_name:'ShelfScape',description:'Your personal bookshelf and reader',
-      theme_color:'#f7f2e8',background_color:'#f7f2e8',display:'standalone',start_url:'./',scope:'./',
+      theme_color:'#f5f5f3',background_color:'#f5f5f3',display:'standalone',start_url:'./',scope:'./',
       icons:[{src:'icon-192.png',sizes:'192x192',type:'image/png'}, {src:'icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}] },
-    workbox:{globPatterns:['**/*.{js,mjs,css,html,png,jpg,svg,epub,pdf,txt,wasm,bcmap,pfb,ttf,icc}'],
+    workbox:{globPatterns:['**/*.{js,mjs,css,html,png,jpg,svg,epub,pdf,txt,wasm,bcmap,pfb,ttf,icc,woff2}'],
       maximumFileSizeToCacheInBytes:8 * 1024 * 1024,cleanupOutdatedCaches:true},
   })],
 })
