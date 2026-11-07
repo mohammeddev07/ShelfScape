@@ -1,0 +1,17 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.title {
+  margin: 0;
+  padding: 1rem;
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+}
