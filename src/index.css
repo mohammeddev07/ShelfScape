@@ -1,6 +1,7 @@
-:root{color-scheme:light;--paper:#f7f2e8;--ink:#312b23;--muted:#706458;--rust:#914423;--line:#cfc3af;--serif:Baskerville,"Iowan Old Style","Palatino Linotype",Georgia,serif;--sans:"Helvetica Neue",Arial,sans-serif;font:16px var(--serif);color:var(--ink);background:var(--paper)}
+:root{color-scheme:light;--paper:#f7f2e8;--ink:#312b23;--muted:#706458;--rust:#914423;--line:#cfc3af;--field:#fffaf34d;--surface:#fff9ef;--glow:#fffaf0;--veil:#fff6e5ed;--edge:#aa9880;--on-rust:#fff7e7;--rust-deep:#793819;--serif:Baskerville,"Iowan Old Style","Palatino Linotype",Georgia,serif;--sans:"Helvetica Neue",Arial,sans-serif;font:16px var(--serif);color:var(--ink);background:var(--paper)}
+:root[data-theme=dark]{color-scheme:dark;--paper:#1d1a16;--ink:#e9dfcf;--muted:#a89a86;--rust:#e0916a;--line:#3e362c;--field:#26221d;--surface:#2a251f;--glow:#2a241d;--veil:#1d1a16ed;--edge:#5a4f40;--on-rust:#1d1a16;--rust-deep:#f0a984}
 *{box-sizing:border-box}
-body{margin:0;min-width:280px}
+body{margin:0;min-width:280px;background:var(--paper);color:var(--ink)}
 button,input,select{font:inherit}
 button,select,a{touch-action:manipulation}
 button{cursor:pointer;color:inherit;background:transparent;border:0}

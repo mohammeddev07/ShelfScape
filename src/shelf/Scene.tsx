@@ -4,6 +4,7 @@ import { OrthographicCamera } from '@react-three/drei'
 import { useSpring } from '@react-spring/three'
 import { BoxGeometry, Group, PlaneGeometry, Texture, MeshStandardMaterial } from 'three'
 import { db } from '../db'
+import { useResolvedTheme } from '../theme'
 import { binding, pageTexture, woodTexture, shadowTexture } from './bindings'
 
 import { layout, type Slot, type Motion, type Hits } from './layout'
@@ -84,7 +85,7 @@ function firstNear(slots: Slot[], x: number) {
 export function Scene({ shelf, selected, motion, hits, reduced, onLose }: {
   shelf: ReturnType<typeof layout>; selected?: number; motion: Motion; hits: Hits; reduced: boolean; onLose: () => void
 }) {
-  const { size, invalidate, gl, setDpr } = useThree()
+  const { size, invalidate, gl, setDpr } = useThree(), night = useResolvedTheme() === 'dark'
   const slowFrames = useRef(0)
   const span = size.width / Math.max(1,size.height) * 2.72
   const margin = Math.min(.6, span * .07), left = -span / 2 + margin
@@ -110,7 +111,7 @@ export function Scene({ shelf, selected, motion, hits, reduced, onLose }: {
   if (picked && !near.includes(picked)) near.push(picked)
   return <>
     <OrthographicCamera makeDefault position={[0,1.05,8]} rotation={[-.13,0,0]} zoom={size.height / 2.72} near={.1} far={50}/>
-    <ambientLight intensity={1.55}/><directionalLight position={[-3,6,5]} intensity={2.3} color="#ffeed7"/>
+    <ambientLight intensity={night ? .95 : 1.55}/><directionalLight position={[-3,6,5]} intensity={night ? 1.7 : 2.3} color={night ? '#ffd9a8' : '#ffeed7'}/>
     <directionalLight position={[4,3,-3]} intensity={1.05}/>
     <mesh geometry={box} position={[0,-1.046,0]} scale={[span + 2,.19,1.65]}><meshStandardMaterial map={wood} roughness={.88}/></mesh>
     <mesh geometry={box} position={[0,-1.15,.10]} scale={[span + 2,.035,1.40]}><meshStandardMaterial color="#644027"/></mesh>

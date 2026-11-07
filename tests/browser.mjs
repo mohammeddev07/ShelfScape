@@ -229,6 +229,19 @@ try {
   console.log('PASS emulated touch selection, drag/open separation, cover activation, context-loss fallback')
   await touch.ctx.close()
 
+  const night = await context({colorScheme:'dark'})
+  assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'dark')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(29, 26, 22)')
+  await night.page.getByRole('button',{name:/Library tools/}).click()
+  await night.page.getByLabel('Theme').selectOption('light')
+  await night.page.getByRole('button',{name:'Close library tools'}).click(); await night.page.reload()
+  assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'light')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(247, 242, 232)')
+  await night.page.getByRole('button',{name:/Library tools/}).click()
+  await night.page.getByLabel('Theme').selectOption('system'); await night.page.getByRole('button',{name:'Close library tools'}).click()
+  await night.ctx.close()
+  console.log('PASS night mode follows the system, persists an explicit choice')
+
   const gallery = await context({reducedMotion:'reduce'})
   const cloth = ['#394f40','#8b523b','#344958','#76505a','#79603b','#41625a','#715240','#3f5638','#9b6b38','#9b6745']
   const long = 'The Extraordinary and Thoroughly Documented Account of a Very Long Voyage Across the Northern Seas and Back Again, Twice'
