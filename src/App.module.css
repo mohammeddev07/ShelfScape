@@ -183,3 +183,4 @@
 .notes{top:auto;left:0;right:0;bottom:0;width:auto;max-height:72vh;padding-bottom:calc(env(safe-area-inset-bottom) + 20px);border-width:1px 0 0;border-radius:16px 16px 0 0}
 .readerNotice{bottom:calc(env(safe-area-inset-bottom) + 72px)}
 }
+.srOnly{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;margin:0;padding:0}

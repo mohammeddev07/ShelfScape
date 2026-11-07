@@ -20,10 +20,10 @@ export default function StatsView({ books, back }: { books: Book[]; back: () => 
   const max = Math.max(...s.dailyMs.map(d => d.ms), 1)
   const figures: [string, string][] = [
     ['This week', formatDuration(s.weekMs)], ['Reading speed', s.wpm === null ? '—' : `${s.wpm} wpm`],
-    ['Streak', `${s.streakDays} ${s.streakDays === 1 ? 'day' : 'days'}`], ['Completed', s.started ? `${s.finished} of ${s.started} books` : '—'],
+    ['Streak', `${s.streakDays} ${s.streakDays === 1 ? 'day' : 'days'}`], ['Completed', s.started ? `${s.finished} of ${s.started} ${s.started === 1 ? 'book' : 'books'}` : '—'],
   ]
   return <section className={styles.stats}>
-    <header className={styles.statsHeader}><button className={styles.ghost} onClick={back}><CaretLeftIcon size={18} aria-hidden="true"/>Library</button></header>
+    <header className={styles.statsHeader}><button className={styles.ghost} autoFocus onClick={back}><CaretLeftIcon size={18} aria-hidden="true"/>Library</button></header>
     <h1>Reading stats</h1>
     <dl className={styles.figures}>{figures.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
     <h2>Last 14 days</h2>
@@ -34,6 +34,7 @@ export default function StatsView({ books, back }: { books: Book[]; back: () => 
           <b style={{ height: d.ms ? `${Math.max(d.ms / max * 100, 3)}%` : 0 }}/></i>)}</div>
       <div className={styles.chartDays} aria-hidden="true"><span>{short(s.dailyMs[0].day)}</span><span>Today</span></div>
     </div>
+    <ul className={styles.srOnly} aria-label="Reading time per day">{s.dailyMs.map(d => <li key={d.day}>{short(d.day)} · {formatDuration(d.ms)}</li>)}</ul>
     <h2>Books</h2>
     {!s.books.length ? <p className={styles.statsEmpty}>Open a book to start tracking your reading.</p> :
       <ul className={styles.statBooks}>{s.books.map(b => <li key={b.id}>

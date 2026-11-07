@@ -29,7 +29,8 @@ export default function NotesPanel({ book,list,editing,onJump,onClose }: { book:
   if (seen !== editing) { setSeen(editing); setOpen(editing) }   // a mark clicked on the page opens its item
   const fail = (e: unknown) => setError(errorMessage(e))
   const share = async () => {
-    const file = new File([toMarkdown(book,list,Date.now())],`${book.title} – highlights.md`,{ type:'text/markdown' })
+    // oxlint-disable-next-line no-control-regex -- control chars are illegal in file names
+    const file = new File([toMarkdown(book,list,Date.now())],`${book.title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g,'-').slice(0,120)} – highlights.md`,{ type:'text/markdown' })
     if (navigator.canShare?.({ files:[file] })) {
       try { await navigator.share({ files:[file],title:book.title }) } catch (e) { if ((e as Error).name !== 'AbortError') fail(e) }
       return

@@ -186,7 +186,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
       {children}
     </div>
     <div className={styles.dock}>
-    {current && !failed && <div className={styles.preview} aria-label={'Inspect ' + current.title}>
+    {current && !failed && <div className={styles.preview} role="group" aria-label={'Inspect ' + current.title}>
       <div><h2>{current.title}</h2>{current.author && <p>{current.author}</p>}
         {currentRead && <p className={styles.meta}>{currentRead.finished ? 'Finished' : Math.round(currentRead.fraction * 100) + '% read'} · {formatDuration(currentRead.ms)}</p>}</div>
       <div className={styles.actions}>

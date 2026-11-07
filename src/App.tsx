@@ -3,7 +3,7 @@ import { liveQuery } from 'dexie'
 import { db, errorMessage, type Book } from './db'
 import { samples } from './library/samples'
 import { Shelf } from './Shelf'
-import { getTheme, setTheme, type Theme } from './theme'
+import { setTheme, useTheme, type Theme } from './theme'
 import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, ChartBarIcon, MagnifyingGlassIcon, PlusIcon, SlidersHorizontalIcon, XIcon } from '@phosphor-icons/react'
 import styles from './App.module.css'
 
@@ -22,7 +22,7 @@ export default function App() {
   const attach = useRef<number | undefined>(undefined), dialog = useRef<HTMLDialogElement>(null)
   const [editing,setEditing] = useState(false)
   const [dragOver,setDragOver] = useState(false), importing = useRef(false)
-  const [persisted,setPersisted] = useState(false), [theme,setThemeState] = useState(getTheme)
+  const [persisted,setPersisted] = useState(false), theme = useTheme()
   useEffect(() => {
     const sub = liveQuery(() => db.books.toArray()).subscribe({
       next: rows => { setBooks(rows); setLoaded(true) },error: e => { setNote(errorMessage(e)); setLoaded(true) },
@@ -116,7 +116,7 @@ export default function App() {
       <header><h2>Library tools</h2><button className={styles.icon} aria-label="Close library tools" onClick={() => setTools(false)}><XIcon size={20} aria-hidden="true"/></button></header>
       <h3>Library backup</h3><p>Save a copy of your books, reading positions, and bookmarks.</p>
       <div className={styles.actions}><button className={styles.secondary} onClick={exportFiles}>Export backup</button><button className={styles.secondary} onClick={() => restoreInput.current?.click()}>Restore backup</button></div>
-      <h3>Appearance</h3><label className={styles.sort}><span>Theme</span><select aria-label="Theme" value={theme} onChange={e => { setTheme(e.target.value as Theme); setThemeState(getTheme()) }}>
+      <h3>Appearance</h3><label className={styles.sort}><span>Theme</span><select aria-label="Theme" value={theme} onChange={e => { setTheme(e.target.value as Theme) }}>
         <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><CaretDownIcon size={14} aria-hidden="true"/></label>
       <h3>Device storage</h3><p>{persisted ? 'Persistent storage is enabled.' : 'Your browser manages storage on this device.'}</p>
       {!persisted && <button className={styles.secondary} onClick={() => persist().then(ok => setNote(ok ? 'Storage protected.' : 'Your browser manages this permission. Keep a backup.')).catch(e => setNote(errorMessage(e)))}>Request persistent storage</button>}
