@@ -25,14 +25,14 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
   const openButton = useRef<HTMLButtonElement>(null), skipFocus = useRef(false), labelEl = useRef<HTMLDivElement>(null)
   const tracks = useRef(new Map<number,PointerTrack>()), pinch = useRef(0)
   const [motion] = useState(() => new Motion())
-  const swap = useRef(0)
+  const swap = useRef(0), focusNext = useRef(false)
   const previous = useRef(books)
   useEffect(() => {
     if (previous.current !== books) {
       motion.move(-motion.offset)
       previous.current = books
     }
-    return () => clearTimeout(swap.current)
+    return () => { clearTimeout(swap.current); swap.current = 0 }
   },[books,motion])
   const current = books.find(b => b.id === selected), labelBook = books.find(b => b.id === labelled)
   const activeIndex = Math.max(0,Math.min(index,books.length - 1))
@@ -51,7 +51,8 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
   },[paused,playing,visible,reading,hovered,focused,current,motion])
   const reset = () => motion.reset()
   const currentId = current?.id
-  useEffect(() => { if (currentId !== undefined) openButton.current?.focus({ preventScroll: true }) },[currentId])
+  // Only a pick moves focus; a book reappearing (e.g. a search filter undone) must not steal it.
+  useEffect(() => { if (currentId !== undefined && focusNext.current) { focusNext.current = false; openButton.current?.focus({ preventScroll: true }) } },[currentId])
   const dismiss = (restore = true) => {
     clearTimeout(swap.current); swap.current = 0
     setSelected(undefined)
@@ -74,7 +75,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
     const busy = swap.current || (selected !== undefined && selected !== id)
     clearTimeout(swap.current); swap.current = 0
     setIndex(books.findIndex(b => b.id === id)); setLabel(undefined)
-    const select = () => { swap.current = 0; if (selected !== id) reset(); setSelected(id) }
+    const select = () => { swap.current = 0; if (selected !== id) { reset(); focusNext.current = true } setSelected(id) }
     if (!busy) return select()
     setSelected(undefined)
     swap.current = window.setTimeout(select,reduced ? 0 : SWAP_DELAY_MS)
@@ -135,7 +136,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
   }
   const key = (e: React.KeyboardEvent) => {
     const axes = { ArrowLeft: ['y',-1],ArrowRight: ['y',1],ArrowUp: ['x',-1],ArrowDown: ['x',1],q: ['z',-1],e: ['z',1] } as const
-    if (e.key === 'Escape' && current) { dismiss(); e.preventDefault() }
+    if (e.key === 'Escape' && (current || swap.current)) { dismiss(); e.preventDefault() }
     else if (current && e.key in axes) {
       const [axis,sign] = axes[e.key as keyof typeof axes]
       rotateBy(motion.inspection,axis,sign * Math.PI / 12); motion.invalidate(); e.preventDefault()

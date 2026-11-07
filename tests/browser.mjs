@@ -271,6 +271,13 @@ try {
   await motion.page.mouse.click(p4.x,p4.y); await motion.page.mouse.click(p5.x,p5.y)
   await motion.page.waitForTimeout(1500)
   assert.deepEqual((await Promise.all([-1,-2,-3,-4,-5].map(z))).map(v => v > .05),[false,false,false,false,true])
+  // Escape during a pending swap cancels it: no book comes out.
+  await motion.page.getByRole('button',{name:'Next spine'}).click()
+  await motion.page.getByRole('button',{name:/^Inspect /}).focus()
+  await motion.page.keyboard.press('Enter'); await motion.page.keyboard.press('Escape')
+  await motion.page.waitForTimeout(1500)
+  assert.equal(await motion.page.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.z > .05).length),0)
+  assert.equal(await openCount(),0)
   const corner = await motion.page.locator('canvas').boundingBox()
   await motion.page.mouse.click(corner.x + 10,corner.y + 10)
   await motion.page.getByRole('button',{name:'Open book'}).waitFor({state:'detached'})

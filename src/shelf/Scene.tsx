@@ -54,7 +54,7 @@ function BookModel({ slot, active, motion, left, hits, reduced, pages }: {
     else if (reduced) { q.identity(); zoom.current = 1 }
     else {
       // Turn back as the book slides home instead of snapping square.
-      const k = 1 - .0005 ** dt
+      const k = 1 - .0005 ** Math.min(dt,.05)
       q.slerp(IDENTITY,k); zoom.current += (1 - zoom.current) * k
       if (q.angleTo(IDENTITY) > 1e-3 || Math.abs(zoom.current - 1) > 1e-3) invalidate()
     }
