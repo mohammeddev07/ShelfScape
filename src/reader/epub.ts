@@ -61,6 +61,10 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
     flatten(book.navigation.toc)
     rendition.themes.default({ body:{ color:'#33291f !important',background:'transparent !important','font-family':'Georgia,serif !important',
       'line-height':'1.65 !important' },'a':{color:'#924324 !important'} })
+    // Scoped to the class epub.js puts on the chapter body, since selecting 'default' later does not remove these rules.
+    // color-scheme matches the page's, or Chrome paints the frame an opaque white canvas.
+    rendition.themes.register('night',{ ':root:has(> body.night)':{ 'color-scheme':'dark' },
+      'body.night':{ color:'#e9dfcf !important',background:'transparent !important' },'.night a':{ color:'#e0916a !important' } })
     rendition.themes.fontSize('100%')
     rendition.hooks.content.register((chapter: Contents) => {
       chapter.document.addEventListener('keydown', e => {
@@ -134,6 +138,7 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
         }
         painted = next
       },
+      theme: mode => rendition.themes.select(mode === 'dark' ? 'night' : 'default'),
       selectionRect() {
         const picked = selection(), frame = picked?.content.window.frameElement?.getBoundingClientRect()
         if (!picked || !frame) return

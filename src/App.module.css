@@ -76,3 +76,6 @@
 .noteEdit textarea{width:100%;padding:8px;font:inherit;color:inherit;background:var(--field);border:1px solid var(--edge);border-radius:6px;resize:vertical}
 .noteEmpty{color:var(--muted)}.export{margin-top:auto;align-self:flex-start;color:var(--rust)}
 @media(max-width:640px){.notes{top:auto;left:0;right:0;width:auto;max-height:70vh;border-left:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -8px 24px #3a291a26}}
+:root[data-theme=dark] .document :global(svg){mix-blend-mode:screen}
+.readerFooter>div{display:flex;flex-shrink:0}
+@media(max-width:640px){.readerFooter{gap:4px}.readerFooter span{font-size:14px;text-align:center}}

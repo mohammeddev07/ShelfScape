@@ -20,4 +20,5 @@ export interface ReaderAdapter {
   measure: (signal: AbortSignal) => Promise<{ words: number; locations?: string }>
   paint: (marks: Paint[]) => void                  // replaces the painted set
   selectionRect: () => DOMRect | undefined         // viewport coordinates
+  theme: (mode: 'light' | 'dark') => void
 }

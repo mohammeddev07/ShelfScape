@@ -150,6 +150,7 @@ export async function openPdf(input: ReaderInput): Promise<ReaderAdapter> {
     },location,
     paint(next) { marks = next; drawMarks() },
     selectionRect: () => selected()?.getBoundingClientRect(),
+    theme() {},   // pdf.css follows the page's data-theme
     async measure(stop) {
       let words = 0
       for (let n = 1; n <= doc.numPages; n++) {

@@ -5,6 +5,7 @@ import type { ReaderAdapter, ReaderStatus } from './adapter'
 import { FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import Toolbar from '../annotations/Toolbar'
 import NotesPanel from '../annotations/NotesPanel'
+import { setTheme, useResolvedTheme } from '../theme'
 import styles from '../App.module.css'
 
 const percent = (progress: number) => Math.round(progress * 100) + '%'
@@ -107,6 +108,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const jump = (to: Location | string) => leap(reader => reader.jump(to))
   const resize = (n: number) => leap(reader => reader.resizeText(n))
   const touch = () => reading.current?.touch(Date.now())
+  const night = useResolvedTheme()
+  useEffect(() => { if (ready) adapter.current?.theme(night) },[ready,night])
   useEffect(() => {
     if (ready) adapter.current?.paint([...list.map(a => ({ key:String(a.id),location:a.location,style:a.color })),
       ...marks?.text ? [{ key:'bookmark',location:marks,style:'bookmark' as const }] : []])
@@ -157,7 +160,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     <p role="status" className={styles.readerNotice}>{notice}</p>
     <footer className={styles.readerFooter}>
       <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}>A−</button>
-        <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => resize(1)}>A+</button></div>
+        <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => resize(1)}>A+</button>
+        <button aria-label="Night mode" aria-pressed={night === 'dark'} onClick={() => setTheme(night === 'dark' ? 'light' : 'dark')}>☾</button></div>
       <button aria-label="Previous page" disabled={!ready || status?.first} onClick={() => run(adapter.current?.step(-1))}>‹</button>
       <span>{status ? status.label + ' · ' + percent(status.progress) : 'Opening…'}</span><button aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}>›</button>
     </footer>

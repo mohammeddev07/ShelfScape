@@ -346,6 +346,27 @@ try {
   }
   await large.ctx.close()
 
+  const dusk = await context({colorScheme:'dark'})
+  await dusk.page.getByText('Explore sample shelf').click()
+  await dusk.page.locator('input[type=search]').fill('Burnett'); await inspect(dusk.page); await open(dusk.page)
+  await dusk.page.waitForFunction(() => {
+    const body = document.querySelector('iframe')?.contentDocument?.body
+    return body && getComputedStyle(body).color === 'rgb(233, 223, 207)'
+  })
+  await back(dusk.page)
+  await dusk.page.locator('input[type=search]').fill('Blake'); await inspect(dusk.page); await open(dusk.page)
+  await dusk.page.locator('.pdfPage canvas').waitFor()
+  assert.match(await dusk.page.locator('.pdfPage canvas').evaluate(c => getComputedStyle(c).filter),/invert/)
+  const nightMode = dusk.page.getByRole('button',{name:'Night mode'})
+  assert.equal(await nightMode.getAttribute('aria-pressed'),'true')
+  await nightMode.click()
+  assert.equal(await dusk.page.evaluate(() => document.documentElement.dataset.theme),'light')
+  await dusk.page.reload()
+  assert.equal(await dusk.page.evaluate(() => document.documentElement.dataset.theme),'light')
+  await dusk.page.evaluate(() => localStorage.removeItem('shelfscape-theme'))
+  await dusk.ctx.close()
+  console.log('PASS night mode in the reader: EPUB theme, PDF inversion, footer toggle persists')
+
   const timed = await context()
   await timed.page.getByText('Explore sample shelf').click()
   await timed.page.locator('input[type=search]').fill('Blake'); await inspect(timed.page); await open(timed.page)

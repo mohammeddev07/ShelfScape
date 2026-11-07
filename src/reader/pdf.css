@@ -8,3 +8,6 @@
 .highlightLayer{position:absolute;inset:0;pointer-events:none}
 .highlightLayer .mark{position:absolute;opacity:.4;mix-blend-mode:multiply}
 .highlightLayer .bookmark{opacity:1;mix-blend-mode:normal;border-bottom:2px solid var(--rust)}
+/* ponytail: inversion also inverts photos; per-image handling if users complain */
+:root[data-theme=dark] .pdfPage canvas{filter:invert(.88) hue-rotate(180deg)}
+:root[data-theme=dark] .highlightLayer .mark{mix-blend-mode:screen}
