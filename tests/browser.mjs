@@ -243,6 +243,25 @@ try {
   }
   await large.ctx.close()
 
+  const timed = await context()
+  await timed.page.getByText('Explore sample shelf').click()
+  await timed.page.locator('input[type=search]').fill('Blake'); await inspect(timed.page); await open(timed.page)
+  await timed.page.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
+  await timed.page.clock.install()
+  await timed.page.getByRole('button',{name:'Next page'}).click()
+  await timed.page.clock.fastForward(90_000)
+  await timed.page.mouse.move(640,400); await timed.page.mouse.wheel(0,200)   // songs.pdf has two pages, so scroll instead of a second Next
+  await timed.page.evaluate(() => {                     // tab hidden mid-session
+    Object.defineProperty(document,'hidden',{value:true,configurable:true})
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await waitForRows(timed.page,'sessions','rows.length === 1')
+  const [row] = await idbRows(timed.page,'sessions')
+  assert.equal(row.book,-11); assert(row.active >= 90_000 && row.active < 100_000); assert(row.advanced > 0 && row.to > row.from)
+  await timed.page.evaluate(() => { Object.defineProperty(document,'hidden',{value:false,configurable:true}) })
+  await timed.ctx.close()
+  console.log('PASS reading session timing, idle cap and save on hide')
+
   const motion = await context()
   await motion.page.getByText('Explore sample shelf').click()
   await motion.page.mouse.move(0,0)

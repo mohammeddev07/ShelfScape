@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, original, errorMessage, type Book, type Location, type Progress } from '../db'
 import type { ReaderAdapter, ReaderStatus } from './adapter'
-import { FINISHED_AT } from '../stats/core'
+import { FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import styles from '../App.module.css'
 
 const percent = (progress: number) => Math.floor(progress * 100) + '%'
@@ -9,6 +9,7 @@ const percent = (progress: number) => Math.floor(progress * 100) + '%'
 export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<ReaderAdapter | null>(null)
   const selectedPassage = useRef<Location | undefined>(undefined)
+  const reading = useRef<ReadingClock | null>(null), jumping = useRef(false)
   const backButton = useRef<HTMLButtonElement>(null)
   const [status,setStatus] = useState<ReaderStatus>(), [ready,setReady] = useState(false)
   const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNotice] = useState('')
@@ -23,14 +24,23 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       const p = await db.progress.get(book.id)
       await db.progress.put({ fraction:0,...p,...patch(p),id:book.id,updated:Date.now() })
     })
+    const opened = Date.now(), clock = new ReadingClock(opened)
+    let trail: ProgressTrail | undefined, session: number | undefined, saving = Promise.resolve(), here = ''
+    reading.current = clock
+    // Saves are chained so the first put's id is known before the next one, keeping one row per visit.
+    const record = () => {
+      if (!trail || clock.active < MIN_SESSION_MS) return
+      const row = { book:book.id,start:opened,end:Date.now(),active:clock.active,from:trail.from,to:trail.to,advanced:trail.advanced }
+      saving = saving.then(async () => { session = await db.sessions.put(session ? { ...row,id:session } : row) }).catch(fail)
+    }
     const flush = () => {
-      window.clearTimeout(timer)
+      window.clearTimeout(timer); record()
       if (!pending) return
       const location = pending; pending = undefined
       db.positions.put({ id:book.id,location }).catch(fail)
       progress(p => ({ fraction,finished:p?.finished ?? (fraction >= FINISHED_AT || end ? Date.now() : undefined) })).catch(fail)
     }
-    const hide = () => { if (document.hidden) flush() }
+    const hide = () => { if (document.hidden) { clock.pause(Date.now()); flush() } else clock.touch(Date.now()) }
     document.addEventListener('visibilitychange',hide); window.addEventListener('pagehide',flush)
     async function start() {
       const [file,saved,bookmark,known] = await Promise.all([original(book),db.positions.get(book.id),db.bookmarks.get(book.id),db.progress.get(book.id)])
@@ -41,6 +51,15 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
         change(location,state) {
           if (controller.signal.aborted) return
           pending = location; fraction = state.progress; end = state.last
+          // A re-report of the same spot (EPUB progress after measuring) is neither reading nor movement: re-baseline only.
+          const key = JSON.stringify(location)
+          if (key === here) trail?.jump(fraction)
+          else {
+            here = key; clock.touch(Date.now())
+            if (!trail) trail = new ProgressTrail(fraction)
+            else if (jumping.current) { trail.jump(fraction); jumping.current = false }
+            else trail.move(fraction)
+          }
           // Scrolling reports continuously; re-render only when something shown changes.
           setStatus(old => old && old.label === state.label && old.first === state.first && old.last === state.last && old.where === state.where &&
             percent(old.progress) === percent(state.progress) ? old : state)
@@ -55,11 +74,15 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     }
     start().catch(fail)
     return () => {
-      flush(); controller.abort(); adapter.current = null
+      flush(); controller.abort(); adapter.current = null; reading.current = null
       document.removeEventListener('visibilitychange',hide); window.removeEventListener('pagehide',flush)
     }
   },[book])
   const run = (promise?: Promise<void>) => { promise?.catch(e => setError(errorMessage(e))) }
+  // Jumps and reflows move the position without reading, so the next change is not forward progress.
+  const jump = (to: Location | string) => { jumping.current = true; run(adapter.current?.jump(to)) }
+  const resize = (n: number) => { jumping.current = true; run(adapter.current?.resizeText(n)) }
+  const touch = () => reading.current?.touch(Date.now())
   const bookmark = async () => {
     const now = adapter.current?.location(true)
     const location = now?.text ? now : selectedPassage.current ?? now
@@ -68,7 +91,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       setNotice(location.text ? 'Passage bookmarked.' : 'Reading position bookmarked.')
     }
   }
-  return <main className={styles.reader} onKeyDown={e => {
+  return <main className={styles.reader} onPointerDown={touch} onWheel={touch} onKeyDown={e => {
+    touch()
     if (e.key === 'Escape') { if (menu) setMenu(false); else back() }
     if (e.target === host.current && ['ArrowLeft','ArrowRight'].includes(e.key)) {
       e.preventDefault(); run(adapter.current?.step(e.key === 'ArrowLeft' ? -1 : 1))
@@ -78,10 +102,10 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       <button onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}>•••</button></header>
     {menu && <aside className={styles.readerMenu}>
       <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}>Bookmark this passage</button>
-      <button disabled={!marks || !ready} onClick={() => { if (marks) run(adapter.current?.jump(marks)); setMenu(false) }}>Go to bookmark</button>
-      {status && status.contents.length > 0 && <label>Contents<select defaultValue="" onChange={e => { run(adapter.current?.jump(e.target.value)); setMenu(false) }}>
+      <button disabled={!marks || !ready} onClick={() => { if (marks) jump(marks); setMenu(false) }}>Go to bookmark</button>
+      {status && status.contents.length > 0 && <label>Contents<select defaultValue="" onChange={e => { jump(e.target.value); setMenu(false) }}>
         <option value="" disabled>Choose a chapter</option>{status.contents.map((c,i) => <option key={i} value={c.target}>{c.title}</option>)}</select></label>}
-      {book.format === 'pdf' && <form onSubmit={e => { e.preventDefault(); run(adapter.current?.jump(page)); setMenu(false) }}>
+      {book.format === 'pdf' && <form onSubmit={e => { e.preventDefault(); jump(page); setMenu(false) }}>
         <label>Go to page <input type="number" min="1" required value={page} onChange={e => setPage(e.target.value)}/></label><button>Go</button></form>}
     </aside>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
@@ -89,8 +113,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     <div ref={host} className={styles.document} tabIndex={0} aria-label={book.title + ' reading area'}/>
     <p role="status" className={styles.readerNotice}>{notice}</p>
     <footer className={styles.readerFooter}>
-      <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => run(adapter.current?.resizeText(-1))}>A−</button>
-        <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => run(adapter.current?.resizeText(1))}>A+</button></div>
+      <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}>A−</button>
+        <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => resize(1)}>A+</button></div>
       <button aria-label="Previous page" disabled={!ready || status?.first} onClick={() => run(adapter.current?.step(-1))}>‹</button>
       <span>{status ? status.label + ' · ' + percent(status.progress) : 'Opening…'}</span><button aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}>›</button>
     </footer>
