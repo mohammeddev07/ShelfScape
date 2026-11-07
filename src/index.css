@@ -1,13 +1,12 @@
-:root {
-  --bg: #1b1410;
-  --fg: #f3e9dc;
-  --accent: #e0a96d;
-  color-scheme: dark;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: system-ui, sans-serif;
-}
+:root{color-scheme:light;--paper:#f7f2e8;--ink:#312b23;--muted:#706458;--rust:#914423;--line:#cfc3af;--serif:Baskerville,"Iowan Old Style","Palatino Linotype",Georgia,serif;--sans:"Helvetica Neue",Arial,sans-serif;font:16px var(--serif);color:var(--ink);background:var(--paper)}
+*{box-sizing:border-box}
+body{margin:0;min-width:280px}
+button,input,select{font:inherit}
+button,select,a{touch-action:manipulation}
+button{cursor:pointer;color:inherit;background:transparent;border:0}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--rust);outline-offset:4px}
+button:hover:not(:disabled),a{color:var(--rust)}
+button,input,select{min-height:42px}
+h1,h2,h3,p{margin:0}
+[hidden]{display:none!important}
