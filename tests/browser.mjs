@@ -176,6 +176,12 @@ try {
   await page.getByRole('button',{name:'Previous page'}).click(); await page.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
   await page.getByRole('button',{name:'Reading options'}).press('Enter'); await page.getByRole('button',{name:'Highlight selection'}).press('Enter')
   await page.getByRole('status').filter({hasText:'Select text to highlight it.'}).waitFor()
+  // The same notice again, after the first has cleared, shows a fresh pill.
+  await page.getByRole('status').filter({hasText:'Select text to highlight it.'}).waitFor({state:'detached'})
+  await page.getByRole('button',{name:'Reading options'}).press('Enter'); await page.getByRole('button',{name:'Highlight selection'}).press('Enter')
+  const pill = page.getByRole('status').locator('span',{hasText:'Select text to highlight it.'})
+  await pill.waitFor()
+  assert.equal(await pill.evaluate(s => getComputedStyle(s).opacity),'1')
   assert.equal((await idbRows(page,'annotations')).length,before)
   await back(page); await search.fill('Burnett'); await inspect(page); await open(page)
   await page.locator('iframe').first().waitFor()

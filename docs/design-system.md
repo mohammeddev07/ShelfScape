@@ -57,7 +57,7 @@ One accent (terracotta). Neutrals are neutral. No pure #000/#fff. `tests/unit/th
 - **Rail**: volume count left in `--muted`; right a pill group with the current title (ellipsized), previous/next and play/pause icon buttons.
 - **Hover tooltip**: `--surface` card, 16px radius, soft shadow, Geist 600 title over 12px muted author/progress.
 - **Inspection preview**: centered title (Geist 600, 22-26px), author in `--muted`, progress line 13px; actions: Open book pill, zoom out/in/reset pill group, ghost Back to shelf (X icon only under 480px, name kept); hint 13px muted, hidden on coarse pointers.
-- **Dock** (rail + preview): while previewing the dock sticks to the bottom with a paper fade. From 960px it is a three-column grid: count left, preview center (max 460px), rail controls right, so the preview never covers them. Below 960px the rail stacks above the preview. The rail title flexes (ellipsis) instead of a fixed vw width. Verified at 1440×900, 1280×800, 1024×768, 390×844 and 360×740: Open book and every rail control inside the viewport and unobstructed.
+- **Dock** (preview + rail, in that DOM and focus order): while previewing the dock sticks to the bottom with a paper fade. From 960px it is a three-column grid: count left, preview center (max 460px), rail controls right, so the preview never covers them. Below 960px the rail sits under the preview. Either way focus runs Open book, zoom, Back to shelf, then the rail controls, matching the visual order. The rail title flexes (ellipsis) instead of a fixed vw width. Verified at 1440×900, 1280×800, 1024×768, 390×844 and 360×740: Open book and every rail control inside the viewport and unobstructed.
 - **Empty state**: bookplate art (lifted slightly so its paper blends into the neutral page; in dark mode it is whitened before inversion so its paper becomes pure black and disappears under the screen blend), Geist h2, ghost accent "Explore sample shelf" with CaretRight.
 - **Footer**: one quiet 13px muted line over a hairline.
 - **Library tools**: `--surface` dialog, 16px radius, soft shadow, sections separated by spacing, pill buttons, X close.
@@ -67,9 +67,10 @@ One accent (terracotta). Neutrals are neutral. No pure #000/#fff. `tests/unit/th
 ## Reader (`src/reader/Reader.tsx`, `src/reader/pdf.css`)
 - Full-bleed chrome; the document column keeps the old width (`min(100%, 977.6px)`) so PDF scale and EPUB pagination are unchanged.
 - **Header** 60px (56px on phones), no rule: ghost "Library" with CaretLeft (accessible name exactly "Library"), centered book title (Geist 600 16px, ellipsis), right icon buttons Notes & highlights and Reading options; an expanded one keeps the `--field` fill.
-- **Footer** 64px over a 1px `--line` hairline. A 2px `--rust` line on that hairline shows reading progress (`--read` custom property). Left: a `.group` stepper (Minus / TextAa or MagnifyingGlass / Plus; names "Decrease/Increase font size" or "Zoom out/in") and the Night mode icon (Moon in light, Sun in dark, `aria-pressed`). Center: Previous/Next caret icon buttons around the status "label · NN%" in 13px muted tabular numerals. On phones the decorative stepper icon hides and the page controls move right.
+- **Footer** 64px over a 1px `--line` hairline. A 2px `--rust` line on that hairline shows reading progress (`--read` custom property). Left: a `.group` stepper (Minus / TextAa or MagnifyingGlass / Plus; names "Decrease/Increase font size" or "Zoom out/in") and the Night mode icon (Moon in light, Sun in dark, `aria-pressed`). Center: Previous/Next caret icon buttons around the status "label · NN%" in 13px muted tabular numerals. On phones the decorative stepper icon hides, the page controls move right and the status may wrap to two lines.
+- **Touch targets**: under 640px or on coarse pointers every reader header and footer icon button (stepper included) and every toolbar swatch is 44×44px.
 - **Reading options**: `--surface` popover, 16px radius, `--shadow`, 300px; ghost rows with muted icons (Bookmark this passage, Highlight selection, Go to bookmark), a hairline, then labelled pill fields (Contents select with CaretDown, Go to page input + secondary Go).
-- **Notice** (`role=status`): the live region stays mounted; each message is a surface pill above the footer that fades after 4s (an animation delay, so reduced motion still shows it).
+- **Notice** (`role=status`): the live region stays mounted; each message is a surface pill above the footer, keyed by a counter so a repeated message gets a fresh pill. It fades after 4s (an animation delay, so reduced motion still shows it) and the text clears at 4.3s.
 - **Loading**: centered 14px muted "Opening your book…" with a slow opacity breathe, no spinner.
 - **Content**: EPUB body text in the book serif stack, day ink #202024, links in the accent; night colors unchanged. PDF pages: 2px radius, `--shadow`, text selection tinted with the accent.
 
@@ -82,7 +83,7 @@ One accent (terracotta). Neutrals are neutral. No pure #000/#fff. `tests/unit/th
 - Export: secondary pill with Export icon, pinned to the bottom of the sheet.
 
 ## Highlight toolbar (`src/annotations/Toolbar.tsx`)
-- Pill on `--surface`, 1px `--line`, `--shadow`. Color swatches are 22px circles with a 1px inner ring inside 40px round targets (44px on coarse pointers), names "Highlight <color>, <label>". A hairline separates the ghost "Add note" with NotePencil.
+- Pill on `--surface`, 1px `--line`, `--shadow`. Color swatches are 22px circles with a 1px inner ring inside 40px round targets (44px under 640px and on coarse pointers; the toolbar keeps 160px from the viewport edges), names "Highlight <color>, <label>". A hairline separates the ghost "Add note" with NotePencil.
 
 ## Copy
 No new em-dashes. The existing "—" for unknown stat values stays as a data placeholder. The inspect hint now reads "Drag to rotate, arrow keys to turn, Q and E to roll".

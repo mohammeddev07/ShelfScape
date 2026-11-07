@@ -186,17 +186,6 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
       {children}
     </div>
     <div className={styles.dock}>
-    <div className={styles.rail}>
-      <span>{books.length} {books.length === 1 ? 'volume' : 'volumes'}</span>
-      {books.length > 0 && !failed && <div className={styles.group}>
-        <button ref={browse} className={`${styles.ghost} ${styles.railTitle}`} onFocus={() => { if (!skipFocus.current && !current) browseTo(index) }}
-          onClick={() => { const book = books[activeIndex]; if (book) pick(book.id) }}
-          aria-label={'Inspect ' + (books[activeIndex]?.title ?? 'book')}>{books[activeIndex]?.title}</button>
-        <button className={styles.icon} aria-label="Previous spine" onClick={() => browseTo(index-1)}><CaretLeftIcon size={18} aria-hidden="true"/></button>
-        <button className={styles.icon} aria-label="Next spine" onClick={() => browseTo(index+1)}><CaretRightIcon size={18} aria-hidden="true"/></button>
-        <button className={styles.icon} aria-label={playing ? 'Pause shelf motion' : 'Play shelf motion'} aria-pressed={playing} onClick={() => setPlaying(!playing)}>{playing ? <PauseIcon size={18} aria-hidden="true"/> : <PlayIcon size={18} aria-hidden="true"/>}</button>
-      </div>}
-    </div>
     {current && !failed && <div className={styles.preview} aria-label={'Inspect ' + current.title}>
       <div><h2>{current.title}</h2>{current.author && <p>{current.author}</p>}
         {currentRead && <p className={styles.meta}>{currentRead.finished ? 'Finished' : Math.round(currentRead.fraction * 100) + '% read'} · {formatDuration(currentRead.ms)}</p>}</div>
@@ -211,6 +200,17 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
       </div>
       <small>Drag to rotate, arrow keys to turn, Q and E to roll</small>
     </div>}
+    <div className={styles.rail}>
+      <span>{books.length} {books.length === 1 ? 'volume' : 'volumes'}</span>
+      {books.length > 0 && !failed && <div className={styles.group}>
+        <button ref={browse} className={`${styles.ghost} ${styles.railTitle}`} onFocus={() => { if (!skipFocus.current && !current) browseTo(index) }}
+          onClick={() => { const book = books[activeIndex]; if (book) pick(book.id) }}
+          aria-label={'Inspect ' + (books[activeIndex]?.title ?? 'book')}>{books[activeIndex]?.title}</button>
+        <button className={styles.icon} aria-label="Previous spine" onClick={() => browseTo(index-1)}><CaretLeftIcon size={18} aria-hidden="true"/></button>
+        <button className={styles.icon} aria-label="Next spine" onClick={() => browseTo(index+1)}><CaretRightIcon size={18} aria-hidden="true"/></button>
+        <button className={styles.icon} aria-label={playing ? 'Pause shelf motion' : 'Play shelf motion'} aria-pressed={playing} onClick={() => setPlaying(!playing)}>{playing ? <PauseIcon size={18} aria-hidden="true"/> : <PlayIcon size={18} aria-hidden="true"/>}</button>
+      </div>}
+    </div>
     </div>
   </section>
 }

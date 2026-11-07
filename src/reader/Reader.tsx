@@ -17,7 +17,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const reading = useRef<ReadingClock | null>(null), jumping = useRef(false)
   const backButton = useRef<HTMLButtonElement>(null), notesButton = useRef<HTMLButtonElement>(null), pressed = useRef(0)
   const [status,setStatus] = useState<ReaderStatus>(), [ready,setReady] = useState(false)
-  const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNotice] = useState('')
+  const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNoticeState] = useState({ text:'',n:0 })
   const [menu,setMenu] = useState(false), [page,setPage] = useState('')
   const [list,setList] = useState<Annotation[]>([]), [picked,setPicked] = useState<DOMRect>()
   const [panel,setPanel] = useState(false), [editing,setEditing] = useState<number>()
@@ -112,6 +112,13 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const jump = (to: Location | string) => leap(reader => reader.jump(to))
   const resize = (n: number) => leap(reader => reader.resizeText(n))
   const touch = () => reading.current?.touch(Date.now())
+  // Each notice remounts its pill (keyed by count) and clears after the 4s fade, so a repeated message shows and is announced again.
+  const setNotice = (text: string) => setNoticeState(old => ({ text,n:old.n + 1 }))
+  useEffect(() => {
+    if (!notice.text) return
+    const timer = window.setTimeout(() => setNoticeState(old => ({ ...old,text:'' })),4300)
+    return () => window.clearTimeout(timer)
+  },[notice])
   const night = useResolvedTheme()
   useEffect(() => { if (ready) adapter.current?.theme(night) },[ready,night])
   useEffect(() => {
@@ -164,7 +171,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow').then(edit))}/>}
     {panel && <NotesPanel book={book} list={list} editing={editing} onClose={closePanel}
       onJump={a => jump({ ...a.location,text:undefined })}/>}
-    <p role="status" className={styles.readerNotice}>{notice && <span key={notice}>{notice}</span>}</p>
+    <p role="status" className={styles.readerNotice}>{notice.text && <span key={notice.n}>{notice.text}</span>}</p>
     <footer className={styles.readerFooter} style={{ '--read':status ? percent(status.progress) : '0%' } as CSSProperties}>
       <div><div className={styles.group}>
         <button className={styles.icon} aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}><MinusIcon size={16} aria-hidden="true"/></button>
