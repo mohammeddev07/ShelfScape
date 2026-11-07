@@ -162,6 +162,11 @@ try {
   await page.getByRole('button',{name:'Export',exact:true}).click()
   const notes = await readFile(await (await exported).path(),'utf8')
   assert.match(notes,/## Idea\n> .*Little Lamb/); assert(notes.includes('Remember the lamb'))
+  // Deleting keeps the panel open; with no next item, focus lands on the panel heading.
+  await page.getByRole('button',{name:'Delete highlight'}).click()
+  await waitForRows(page,'annotations','!rows.some(a => a.note === "Remember the lamb")')
+  await page.waitForFunction(() => document.activeElement?.matches('h2') && document.activeElement.textContent === 'Notes & highlights')
+  await page.getByText('Select text and choose a color to highlight it.').waitFor()
   await page.getByRole('button',{name:'Close notes'}).click()
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),'Notes & highlights')
   // A selection that was cleared, then a page turn: keyboard Highlight selection must not save the old passage.

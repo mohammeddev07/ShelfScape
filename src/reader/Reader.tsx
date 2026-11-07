@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { ArrowBendDownRightIcon, BookmarkSimpleIcon, CaretDownIcon, CaretLeftIcon, CaretRightIcon, DotsThreeIcon, HighlighterIcon, MagnifyingGlassIcon, MinusIcon, MoonIcon, NotePencilIcon, PlusIcon, SunIcon, TextAaIcon } from '@phosphor-icons/react'
 import { liveQuery } from 'dexie'
 import { db, original, errorMessage, type Annotation, type Book, type HighlightColor, type Location, type Progress } from '../db'
 import type { ReaderAdapter, ReaderStatus } from './adapter'
@@ -143,17 +144,18 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       e.preventDefault(); run(adapter.current?.step(e.key === 'ArrowLeft' ? -1 : 1))
     }
   }}>
-    <header className={styles.readerHeader}><button ref={backButton} onClick={back}>‹ Library</button><h1>{book.title}</h1>
-      <div><button ref={notesButton} aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}>✎</button>
-      <button onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}>•••</button></div></header>
+    <header className={styles.readerHeader}>
+      <button ref={backButton} className={styles.ghost} onClick={back}><CaretLeftIcon size={18} aria-hidden="true"/>Library</button><h1>{book.title}</h1>
+      <div><button ref={notesButton} className={styles.icon} aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}><NotePencilIcon size={20} aria-hidden="true"/></button>
+      <button className={styles.icon} onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}><DotsThreeIcon size={20} weight="bold" aria-hidden="true"/></button></div></header>
     {menu && <aside className={styles.readerMenu}>
-      <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}>Bookmark this passage</button>
-      <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => { run(highlight('yellow')); setMenu(false) }}>Highlight selection</button>
-      <button disabled={!marks || !ready} onClick={() => { if (marks) jump(marks); setMenu(false) }}>Go to bookmark</button>
-      {status && status.contents.length > 0 && <label>Contents<select defaultValue="" onChange={e => { jump(e.target.value); setMenu(false) }}>
-        <option value="" disabled>Choose a chapter</option>{status.contents.map((c,i) => <option key={i} value={c.target}>{c.title}</option>)}</select></label>}
+      <button className={styles.ghost} disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}><BookmarkSimpleIcon size={18} aria-hidden="true"/>Bookmark this passage</button>
+      <button className={styles.ghost} disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => { run(highlight('yellow')); setMenu(false) }}><HighlighterIcon size={18} aria-hidden="true"/>Highlight selection</button>
+      <button className={styles.ghost} disabled={!marks || !ready} onClick={() => { if (marks) jump(marks); setMenu(false) }}><ArrowBendDownRightIcon size={18} aria-hidden="true"/>Go to bookmark</button>
+      {status && status.contents.length > 0 && <label>Contents<span className={styles.select}><select defaultValue="" onChange={e => { jump(e.target.value); setMenu(false) }}>
+        <option value="" disabled>Choose a chapter</option>{status.contents.map((c,i) => <option key={i} value={c.target}>{c.title}</option>)}</select><CaretDownIcon size={14} aria-hidden="true"/></span></label>}
       {book.format === 'pdf' && <form onSubmit={e => { e.preventDefault(); jump(page); setMenu(false) }}>
-        <label>Go to page <input type="number" min="1" required value={page} onChange={e => setPage(e.target.value)}/></label><button>Go</button></form>}
+        <label>Go to page <input type="number" min="1" required value={page} onChange={e => setPage(e.target.value)}/></label><button className={styles.secondary}>Go</button></form>}
     </aside>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {!ready && !error && <p className={styles.readerLoading}>Opening your book…</p>}
@@ -162,13 +164,17 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow').then(edit))}/>}
     {panel && <NotesPanel book={book} list={list} editing={editing} onClose={closePanel}
       onJump={a => jump({ ...a.location,text:undefined })}/>}
-    <p role="status" className={styles.readerNotice}>{notice}</p>
-    <footer className={styles.readerFooter}>
-      <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}>A−</button>
-        <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => resize(1)}>A+</button>
-        <button aria-label="Night mode" aria-pressed={night === 'dark'} onClick={() => setTheme(night === 'dark' ? 'light' : 'dark')}>☾</button></div>
-      <button aria-label="Previous page" disabled={!ready || status?.first} onClick={() => run(adapter.current?.step(-1))}>‹</button>
-      <span>{status ? status.label + ' · ' + percent(status.progress) : 'Opening…'}</span><button aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}>›</button>
+    <p role="status" className={styles.readerNotice}>{notice && <span key={notice}>{notice}</span>}</p>
+    <footer className={styles.readerFooter} style={{ '--read':status ? percent(status.progress) : '0%' } as CSSProperties}>
+      <div><div className={styles.group}>
+        <button className={styles.icon} aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}><MinusIcon size={16} aria-hidden="true"/></button>
+        {book.format === 'pdf' ? <MagnifyingGlassIcon size={16} aria-hidden="true"/> : <TextAaIcon size={18} aria-hidden="true"/>}
+        <button className={styles.icon} aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => resize(1)}><PlusIcon size={16} aria-hidden="true"/></button></div>
+        <button className={styles.icon} aria-label="Night mode" aria-pressed={night === 'dark'} onClick={() => setTheme(night === 'dark' ? 'light' : 'dark')}>
+          {night === 'dark' ? <SunIcon size={20} aria-hidden="true"/> : <MoonIcon size={20} aria-hidden="true"/>}</button></div>
+      <div><button className={styles.icon} aria-label="Previous page" disabled={!ready || status?.first} onClick={() => run(adapter.current?.step(-1))}><CaretLeftIcon size={20} aria-hidden="true"/></button>
+        <span>{status ? status.label + ' · ' + percent(status.progress) : 'Opening…'}</span>
+        <button className={styles.icon} aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}><CaretRightIcon size={20} aria-hidden="true"/></button></div>
     </footer>
   </main>
 }

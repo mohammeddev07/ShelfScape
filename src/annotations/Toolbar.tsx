@@ -1,3 +1,4 @@
+import { NotePencilIcon } from '@phosphor-icons/react'
 import type { HighlightColor } from '../db'
 import { COLORS, COLOR_ORDER } from './core'
 import styles from '../App.module.css'
@@ -10,6 +11,6 @@ export default function Toolbar({ rect,touch,onColor,onNote }: { rect: DOMRect; 
     top:below ? Math.min(innerHeight - 124,rect.bottom + 10) : Math.max(120,rect.top - 10),transform:`translate(-50%,${below ? 0 : '-100%'})` }}>
     {COLOR_ORDER.map(c => <button key={c} aria-label={'Highlight ' + c + ', ' + COLORS[c].label} title={COLORS[c].label} onClick={() => onColor(c)}>
       <i style={{ background:COLORS[c].fill }}/></button>)}
-    <button onClick={onNote}>Add note</button>
+    <button className={styles.ghost} onClick={onNote}><NotePencilIcon size={18} aria-hidden="true"/>Add note</button>
   </div>
 }
