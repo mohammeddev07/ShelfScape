@@ -24,6 +24,8 @@
 .stage{position:relative;height:clamp(312px,51svh,560px);touch-action:pan-y;isolation:isolate;overflow:hidden}
 .stage:has(canvas){touch-action:none}
 .stage>div:has(>canvas){z-index:1}
+.label{position:absolute;z-index:2;left:0;top:0;visibility:hidden;pointer-events:none;max-width:220px;width:max-content;padding:6px 10px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px #3a291a22;font:15px/1.25 var(--serif);text-align:center}
+.label small{display:block;font:13px var(--sans);color:var(--ink)}
 .shelfShadow{position:absolute;z-index:0;top:84%;width:100%;height:12%;background:linear-gradient(#50331945,#72523810 70%,transparent);pointer-events:none}
 .empty{position:absolute;z-index:2;left:0;right:0;top:0;height:78%;display:flex;align-items:center;justify-content:center;gap:clamp(20px,5vw,76px);pointer-events:none}
 .bookplate{width:clamp(200px,26vw,355px);height:82%;object-fit:contain;mix-blend-mode:multiply}
