@@ -30,3 +30,7 @@ dev-dist
 *.njsproj
 *.sln
 *.sw?
+
+# Local AI agent tooling (worktrees, plans, session state)
+.claude/
+.superpowers/

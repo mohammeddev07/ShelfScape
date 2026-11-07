@@ -1,0 +1,14 @@
+.pdfPage{position:relative;margin:0 auto;background:white;border-radius:2px;box-shadow:var(--shadow)}
+.pdfPage canvas{display:block;width:100%;height:100%}
+.textLayer{position:absolute;inset:0;overflow:clip;line-height:1;text-align:initial;letter-spacing:normal;word-spacing:normal;text-size-adjust:none;transform-origin:0 0;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor)*var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size))}
+.textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0;user-select:text}
+.textLayer .markedContent{display:contents}
+.textLayer > :not(.markedContent),.textLayer .markedContent span:not(.markedContent){font-size:calc(var(--text-scale-factor)*var(--font-height));transform:rotate(var(--rotate,0deg)) scaleX(var(--scale-x,1)) scale(var(--min-font-size-inv))}
+.textLayer ::selection{background:rgb(194 65 12 / .25)}
+.highlightLayer{position:absolute;inset:0;pointer-events:none}
+.highlightLayer .mark{position:absolute;opacity:.4;mix-blend-mode:multiply}
+.highlightLayer .bookmark{opacity:1;mix-blend-mode:normal;border-bottom:2px solid var(--rust)}
+/* ponytail: inversion also inverts photos; per-image handling if users complain */
+:root[data-theme=dark] .pdfPage canvas{filter:invert(.88) hue-rotate(180deg)}
+:root[data-theme=dark] .highlightLayer .mark{mix-blend-mode:screen}
+:root[data-theme=dark] .highlightLayer .bookmark{mix-blend-mode:normal}

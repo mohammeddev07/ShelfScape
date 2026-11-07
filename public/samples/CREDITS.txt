@@ -1,0 +1,23 @@
+ShelfScape sample shelf
+
+The EPUB editions are supplied by Project Gutenberg. Each book retains its full source credits and Project Gutenberg license. Embedded illustrations were downsampled for offline mobile storage. The original literary works are public domain in the United States.
+
+The Secret Garden — Frances Hodgson Burnett — https://www.gutenberg.org/ebooks/17396
+Alice's Adventures in Wonderland — Lewis Carroll — https://www.gutenberg.org/ebooks/11
+Pride and Prejudice — Jane Austen — https://www.gutenberg.org/ebooks/1342
+Frankenstein — Mary Shelley — https://www.gutenberg.org/ebooks/84
+Treasure Island — Robert Louis Stevenson — https://www.gutenberg.org/ebooks/120
+Little Women — Louisa May Alcott — https://www.gutenberg.org/ebooks/514
+The Jungle Book — Rudyard Kipling — https://www.gutenberg.org/ebooks/236
+The Time Machine — H. G. Wells — https://www.gutenberg.org/ebooks/35
+Persuasion — Jane Austen — https://www.gutenberg.org/ebooks/105
+The Wind in the Willows — Kenneth Grahame — https://www.gutenberg.org/ebooks/289
+
+Songs of Innocence — William Blake, 1789. Two poems selected for this ShelfScape PDF edition. The poems are in the public domain.
+
+Moby-Dick — Herman Melville — https://www.gutenberg.org/ebooks/2701
+Dracula — Bram Stoker — https://www.gutenberg.org/ebooks/345
+Emma — Jane Austen — https://www.gutenberg.org/ebooks/158
+The Odyssey — Homer, translated by Samuel Butler — https://www.gutenberg.org/ebooks/1727
+Wuthering Heights — Emily Brontë — https://www.gutenberg.org/ebooks/768
+A Tale of Two Cities — Charles Dickens — https://www.gutenberg.org/ebooks/98

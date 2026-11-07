@@ -1,0 +1,21 @@
+name: Verify ShelfScape
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npx playwright-core install --with-deps chromium
+      - name: Exercise the production build
+        run: |
+          npm run preview -- --host 127.0.0.1 &
+          until curl -fsS http://127.0.0.1:4173/ > /dev/null; do sleep 1; done
+          npm run test:browser

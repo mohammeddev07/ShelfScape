@@ -7,14 +7,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:browser": "node tests/browser.mjs",
+    "test:unit": "TZ=UTC node --test 'tests/unit/*.test.ts'"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@react-spring/three": "^10.1.2",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "dexie": "^4.4.7",
     "epubjs": "^0.3.93",
+    "jszip": "^3.10.1",
     "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -27,8 +31,12 @@
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.90.0",
+    "playwright-core": "^1.65.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.6",
     "vite-plugin-pwa": "^2.0.0"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }
