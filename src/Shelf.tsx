@@ -7,7 +7,7 @@ import { rotateBy, rotateDrag, type PointerTrack } from './shelf/interaction'
 import { liveQuery } from 'dexie'
 import { db, type Book } from './db'
 import { formatDuration } from './stats/core'
-import { ArrowCounterClockwiseIcon, CaretLeftIcon, CaretRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, PauseIcon, PlayIcon } from '@phosphor-icons/react'
+import { ArrowCounterClockwiseIcon, CaretLeftIcon, CaretRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, PauseIcon, PlayIcon, XIcon } from '@phosphor-icons/react'
 import styles from './App.module.css'
 
 class GraphicsBoundary extends Component<{ children: ReactNode; fail: () => void }, { failed: boolean }> {
@@ -185,6 +185,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
       </div>}
       {children}
     </div>
+    <div className={styles.dock}>
     <div className={styles.rail}>
       <span>{books.length} {books.length === 1 ? 'volume' : 'volumes'}</span>
       {books.length > 0 && !failed && <div className={styles.group}>
@@ -206,9 +207,10 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
           <button className={styles.icon} aria-label="Zoom in" onClick={() => motion.zoomBy(.12)}><MagnifyingGlassPlusIcon size={18} aria-hidden="true"/></button>
           <button className={styles.icon} aria-label="Reset view" onClick={reset}><ArrowCounterClockwiseIcon size={18} aria-hidden="true"/></button>
         </div>
-        <button className={styles.ghost} onClick={() => dismiss()}>Back to shelf</button>
+        <button className={styles.ghost} onClick={() => dismiss()}><XIcon size={18} aria-hidden="true"/><span>Back to shelf</span></button>
       </div>
       <small>Drag to rotate, arrow keys to turn, Q and E to roll</small>
     </div>}
+    </div>
   </section>
 }
