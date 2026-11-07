@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
 import { basename,join,resolve } from 'node:path'
-import { mkdtemp,readFile } from 'node:fs/promises'
+import { mkdtemp,readFile,writeFile } from 'node:fs/promises'
+import JSZip from 'jszip'
 import { chromium } from 'playwright-core'
 
 const url = process.env.TEST_URL || 'http://127.0.0.1:4173'
@@ -151,6 +152,16 @@ try {
   await back(page)
   assert((await idbRows(page,'positions')).some(row => row.location.cfi?.startsWith('epubcfi(')))
   console.log('PASS mixed import, deduplication, offline cold start, PDF and EPUB reading, resume and bookmarks')
+  const [b1,b2] = (await idbRows(page,'books')).map(book => book.id)
+  await seedRows(page,'sessions',[
+    {book:b1,start:1_000_000,end:1_060_000,active:50_000,from:0,to:0.2,advanced:0.2},
+    {book:b2,start:2_000_000,end:2_090_000,active:80_000,from:0.1,to:0.3,advanced:0.2}])
+  await seedRows(page,'progress',[{id:b1,fraction:0.2,words:1000,updated:5,finished:777},{id:b2,fraction:0.3,updated:6}])
+  await seedRows(page,'annotations',[
+    {book:b1,location:{format:'pdf',page:2,fraction:0.5,text:'Little Lamb',offset:12},color:'yellow',note:'',where:'Page 2',order:0.1,created:3_000_000,updated:3_000_000},
+    {book:b2,location:{format:'epub',cfi:'epubcfi(/6/4!/4/2,/1:0,/1:5)',text:'Secret'},color:'pink',note:'hi',where:'Chapter 1',order:0.2,created:4_000_000,updated:4_000_000}])
+  const S = (await idbRows(page,'sessions')).length, A = (await idbRows(page,'annotations')).length
+  assert(S >= 2 && A >= 2)
   await page.getByText('Library tools',{exact:false}).first().click()
   const download = page.waitForEvent('download')
   await page.getByText('Export backup',{exact:true}).click()
@@ -161,9 +172,31 @@ try {
   await restored.page.getByRole('status').filter({hasText:'Backup restored.'}).waitFor()
   assert.equal((await idbRows(restored.page,'books')).length,2)
   assert.equal((await idbRows(restored.page,'bookmarks')).length,2)
+  assert.equal((await idbRows(restored.page,'sessions')).length,S)
+  assert.equal((await idbRows(restored.page,'annotations')).length,A)
+  const prog = await idbRows(restored.page,'progress')
+  assert(prog.some(row => row.finished === 777))
+  const restoredBooks = (await idbRows(restored.page,'books')).map(book => book.id)
+  assert((await idbRows(restored.page,'sessions')).every(row => restoredBooks.includes(row.book)))
+  assert((await idbRows(restored.page,'annotations')).some(row => row.location.offset === 12))
   await restored.page.locator('input[accept=".zip"]').setInputFiles(archive)
   await restored.page.waitForTimeout(200)
   assert.equal((await idbRows(restored.page,'files')).length,2)
+  assert.equal((await idbRows(restored.page,'sessions')).length,S)
+  assert.equal((await idbRows(restored.page,'annotations')).length,A)
+  assert.equal((await idbRows(restored.page,'progress')).length,prog.length)
+  const bad = new JSZip()
+  bad.file('library.json',JSON.stringify({version:2,books:[],positions:[],bookmarks:[],progress:[],annotations:[],
+    sessions:[{book:-1,start:5,end:1,active:0,from:0,to:0,advanced:0}]}))
+  await writeFile(join(outs,'bad.zip'),await bad.generateAsync({type:'nodebuffer'}))
+  await restored.page.locator('input[accept=".zip"]').setInputFiles(join(outs,'bad.zip'))
+  await restored.page.getByRole('status').filter({hasText:'Invalid reading data in backup.'}).waitFor()
+  assert.equal((await idbRows(restored.page,'sessions')).length,S)
+  const v1 = new JSZip()
+  v1.file('library.json',JSON.stringify({version:1,books:[],positions:[],bookmarks:[]}))
+  await writeFile(join(outs,'v1.zip'),await v1.generateAsync({type:'nodebuffer'}))
+  await restored.page.locator('input[accept=".zip"]').setInputFiles(join(outs,'v1.zip'))
+  await restored.page.getByRole('status').filter({hasText:'Backup restored.'}).waitFor()
   console.log('PASS backup round trip and repeated restore')
   await ctx.close(); await restored.ctx.close()
 
