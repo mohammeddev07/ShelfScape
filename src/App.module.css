@@ -60,3 +60,6 @@
 @media(max-height:530px) and (orientation:landscape){.stage{height:275px}.heading{padding-top:12px}.mast{height:48px}}
 .stage{isolation:auto}.empty{mix-blend-mode:multiply}
 :root[data-theme=dark] .empty{mix-blend-mode:screen}:root[data-theme=dark] .bookplate{mix-blend-mode:normal;filter:invert(1) hue-rotate(180deg) brightness(.9)}
+.toolbar{position:fixed;z-index:6;display:flex;align-items:center;gap:2px;padding:4px 6px;background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:0 6px 18px #3a291a33;font:13px var(--sans)}
+.toolbar button{min-width:44px;min-height:44px;padding:0 8px;white-space:nowrap;color:var(--rust)}.toolbar i{display:block;width:22px;height:22px;margin:auto;border-radius:50%;border:1px solid #0002}
+.document :global(svg){mix-blend-mode:multiply}

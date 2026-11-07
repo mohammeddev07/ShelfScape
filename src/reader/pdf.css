@@ -5,3 +5,6 @@
 .textLayer .markedContent{display:contents}
 .textLayer > :not(.markedContent),.textLayer .markedContent span:not(.markedContent){font-size:calc(var(--text-scale-factor)*var(--font-height));transform:rotate(var(--rotate,0deg)) scaleX(var(--scale-x,1)) scale(var(--min-font-size-inv))}
 .textLayer ::selection{background:#aa65434d}
+.highlightLayer{position:absolute;inset:0;pointer-events:none}
+.highlightLayer .mark{position:absolute;opacity:.4;mix-blend-mode:multiply}
+.highlightLayer .bookmark{opacity:1;mix-blend-mode:normal;border-bottom:2px solid var(--rust)}
