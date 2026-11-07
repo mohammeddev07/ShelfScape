@@ -4,7 +4,7 @@ import type { ReaderAdapter, ReaderStatus } from './adapter'
 import { FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import styles from '../App.module.css'
 
-const percent = (progress: number) => Math.floor(progress * 100) + '%'
+const percent = (progress: number) => Math.round(progress * 100) + '%'
 
 export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<ReaderAdapter | null>(null)
@@ -57,9 +57,10 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
           else {
             here = key; clock.touch(Date.now())
             if (!trail) trail = new ProgressTrail(fraction)
-            else if (jumping.current) { trail.jump(fraction); jumping.current = false }
+            else if (jumping.current) trail.jump(fraction)
             else trail.move(fraction)
           }
+          jumping.current = false
           // Scrolling reports continuously; re-render only when something shown changes.
           setStatus(old => old && old.label === state.label && old.first === state.first && old.last === state.last && old.where === state.where &&
             percent(old.progress) === percent(state.progress) ? old : state)
@@ -67,10 +68,9 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
         },
       })
       controller.signal.throwIfAborted(); adapter.current = reader; setReady(true)
-      if (known?.words === undefined) {
-        const measured = await reader.measure(controller.signal)
-        await progress(() => measured)
-      }
+      // Best effort: a book that reads fine but cannot be measured shows no error, and words stay unset so a later open retries.
+      if (known?.words === undefined) reader.measure(controller.signal)
+        .then(measured => { controller.signal.throwIfAborted(); return progress(() => measured) }).catch(() => {})
     }
     start().catch(fail)
     return () => {
@@ -80,8 +80,16 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   },[book])
   const run = (promise?: Promise<void>) => { promise?.catch(e => setError(errorMessage(e))) }
   // Jumps and reflows move the position without reading, so the next change is not forward progress.
-  const jump = (to: Location | string) => { jumping.current = true; run(adapter.current?.jump(to)) }
-  const resize = (n: number) => { jumping.current = true; run(adapter.current?.resizeText(n)) }
+  // The flag clears on the change the adapter reports; a rejected call reports none, so clear it there too.
+  // Not in finally: epub.js emits relocated a frame after display() resolves.
+  const leap = (act: (reader: ReaderAdapter) => Promise<void>) => {
+    const reader = adapter.current
+    if (!reader) return
+    jumping.current = true
+    run(act(reader).catch(e => { jumping.current = false; throw e }))
+  }
+  const jump = (to: Location | string) => leap(reader => reader.jump(to))
+  const resize = (n: number) => leap(reader => reader.resizeText(n))
   const touch = () => reading.current?.touch(Date.now())
   const bookmark = async () => {
     const now = adapter.current?.location(true)
