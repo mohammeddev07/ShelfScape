@@ -2,6 +2,7 @@ import { TextLayer, type RenderTask } from 'pdfjs-dist'
 import { loadPdf } from './pdfDocument'
 import type { ReaderAdapter, ReaderInput } from './adapter'
 import type { Location } from '../db'
+import { countWords } from '../stats/core'
 import './pdf.css'
 
 export async function openPdf(input: ReaderInput): Promise<ReaderAdapter> {
@@ -25,7 +26,8 @@ export async function openPdf(input: ReaderInput): Promise<ReaderAdapter> {
     }
     return { format:'pdf',page,fraction:anchor }
   }
-  const report = () => input.change(location(),{ label:page + ' / ' + doc.numPages,first:page === 1,last:page === doc.numPages,contents:[] })
+  const report = () => input.change(location(),{ label:page + ' / ' + doc.numPages,first:page === 1,last:page === doc.numPages,contents:[],
+    progress:(page - 1 + fraction) / doc.numPages,where:'Page ' + page })
   const onScroll = () => { if (!drawing && !signal.aborted) { fraction = element.scrollTop / Math.max(1,element.scrollHeight); report() } }
   element.addEventListener('scroll',onScroll,{ signal })
   function selectPassage(quote:string) {
@@ -101,5 +103,16 @@ export async function openPdf(input: ReaderInput): Promise<ReaderAdapter> {
       if (typeof to === 'string') { page = Math.min(doc.numPages,Math.max(1,Number(to) || 1)); await draw(0) }
       else if (to.format === 'pdf') { page = Math.min(doc.numPages,Math.max(1,to.page)); await draw(to.fraction); if (to.text) selectPassage(to.text) }
     },location,
+    async measure(stop) {
+      let words = 0
+      for (let n = 1; n <= doc.numPages; n++) {
+        stop.throwIfAborted()
+        const pdfPage = await doc.getPage(n)
+        for (const item of (await pdfPage.getTextContent()).items) if ('str' in item) words += countWords(item.str)
+        pdfPage.cleanup()
+        await new Promise(r => setTimeout(r))
+      }
+      return { words }
+    },
   }
 }

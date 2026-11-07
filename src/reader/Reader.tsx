@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { db, original, errorMessage, type Book, type Location } from '../db'
+import { db, original, errorMessage, type Book, type Location, type Progress } from '../db'
 import type { ReaderAdapter, ReaderStatus } from './adapter'
+import { FINISHED_AT } from '../stats/core'
 import styles from '../App.module.css'
+
+const percent = (progress: number) => Math.floor(progress * 100) + '%'
 
 export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<ReaderAdapter | null>(null)
@@ -13,29 +16,42 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   useEffect(() => {
     backButton.current?.focus()
     const controller = new AbortController()
-    let pending: Location | undefined, timer = 0
+    let pending: Location | undefined, timer = 0, fraction = 0, end = false
     const fail = (e: unknown) => { if (!controller.signal.aborted) setError(errorMessage(e)) }
+    // Read-modify-write in one transaction so progress saves and the measurement never overwrite each other.
+    const progress = (patch: (p?: Progress) => Partial<Progress>) => db.transaction('rw',db.progress,async () => {
+      const p = await db.progress.get(book.id)
+      await db.progress.put({ fraction:0,...p,...patch(p),id:book.id,updated:Date.now() })
+    })
     const flush = () => {
       window.clearTimeout(timer)
       if (!pending) return
       const location = pending; pending = undefined
       db.positions.put({ id:book.id,location }).catch(fail)
+      progress(p => ({ fraction,finished:p?.finished ?? (fraction >= FINISHED_AT || end ? Date.now() : undefined) })).catch(fail)
     }
     const hide = () => { if (document.hidden) flush() }
     document.addEventListener('visibilitychange',hide); window.addEventListener('pagehide',flush)
     async function start() {
-      const [file,saved,bookmark] = await Promise.all([original(book),db.positions.get(book.id),db.bookmarks.get(book.id)])
+      const [file,saved,bookmark,known] = await Promise.all([original(book),db.positions.get(book.id),db.bookmarks.get(book.id),db.progress.get(book.id)])
       controller.signal.throwIfAborted(); setMarks(bookmark?.location)
       const open = book.format === 'epub' ? (await import('./epub')).openEpub : (await import('./pdf')).openPdf
       controller.signal.throwIfAborted()
-      const reader = await open({ file,element:host.current!,saved:saved?.location,signal:controller.signal,error:fail,
+      const reader = await open({ file,element:host.current!,saved:saved?.location,locations:known?.locations,signal:controller.signal,error:fail,
         change(location,state) {
           if (controller.signal.aborted) return
-          pending = location; setStatus(old => old?.label === state.label && old.first === state.first && old.last === state.last ? old : state)
+          pending = location; fraction = state.progress; end = state.last
+          // Scrolling reports continuously; re-render only when something shown changes.
+          setStatus(old => old && old.label === state.label && old.first === state.first && old.last === state.last && old.where === state.where &&
+            percent(old.progress) === percent(state.progress) ? old : state)
           window.clearTimeout(timer); timer = window.setTimeout(flush,250)
         },
       })
       controller.signal.throwIfAborted(); adapter.current = reader; setReady(true)
+      if (known?.words === undefined) {
+        const measured = await reader.measure(controller.signal)
+        await progress(() => measured)
+      }
     }
     start().catch(fail)
     return () => {
@@ -76,7 +92,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
       <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => run(adapter.current?.resizeText(-1))}>A−</button>
         <button aria-label={book.format === 'pdf' ? 'Zoom in' : 'Increase font size'} disabled={!ready} onClick={() => run(adapter.current?.resizeText(1))}>A+</button></div>
       <button aria-label="Previous page" disabled={!ready || status?.first} onClick={() => run(adapter.current?.step(-1))}>‹</button>
-      <span>{status?.label ?? 'Opening…'}</span><button aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}>›</button>
+      <span>{status ? status.label + ' · ' + percent(status.progress) : 'Opening…'}</span><button aria-label="Next page" disabled={!ready || status?.last} onClick={() => run(adapter.current?.step(1))}>›</button>
     </footer>
   </main>
 }

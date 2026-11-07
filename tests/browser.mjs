@@ -64,13 +64,11 @@ async function idbRows(page,table) {
     db.close(); return rows
   },table)
 }
+// Polls from Node: page.waitForFunction treats an async predicate's Promise as truthy and resolves at once.
 async function waitForRows(page,table,test) {
-  await page.waitForFunction(async ([table,test]) => {
-    const db = await new Promise(r => { const q = indexedDB.open('shelfscape'); q.onsuccess = () => r(q.result) })
-    if (!db.objectStoreNames.contains(table)) { db.close(); return false }
-    const rows = await new Promise(r => { const g = db.transaction(table).objectStore(table).getAll(); g.onsuccess = () => r(g.result) })
-    db.close(); return new Function('rows','return ' + test)(rows)
-  },[table,test],{timeout:30_000})
+  const check = new Function('rows','return ' + test)
+  for (const end = Date.now() + 30_000; !check(await idbRows(page,table).catch(() => [])); await page.waitForTimeout(100))
+    if (Date.now() > end) throw new Error('waitForRows timed out: ' + table + ' ' + test)
 }
 // Writes fixture rows straight into IndexedDB so a block can test a feature without depending on another block.
 async function seedRows(page,table,rows) {
@@ -126,6 +124,7 @@ try {
   await page.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
   await page.getByRole('button',{name:'Next page'}).click()
   await page.getByText('The Lamb',{exact:true}).waitFor()
+  await waitForRows(page,'progress','rows.some(p => p.words > 0 && p.words < 10000 && !p.locations)')
   await page.getByRole('button',{name:'Zoom in'}).click()
   await page.waitForFunction(() => document.querySelector('.textLayer')?.textContent.includes('Little Lamb, who made thee?'))
   await page.locator('.textLayer').evaluate(layer => {
@@ -143,8 +142,12 @@ try {
   await back(page); await search.fill('Burnett'); await inspect(page); await open(page)
   await page.locator('iframe').first().waitFor()
   await page.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.body?.children.length > 0)
+  await waitForRows(page,'progress','rows.some(p => p.words > 10000 && p.locations)')
+  await page.getByText(/\d+%/).first().waitFor()
   assert.equal(await page.locator('iframe').first().getAttribute('sandbox'),'allow-same-origin')
-  await page.getByRole('button',{name:'Next page'}).click()
+  // The cover and the first text page are both at location 0, so progress shows from the second text page.
+  await page.getByRole('button',{name:'Next page'}).click(); await page.getByRole('button',{name:'Next page'}).click()
+  await waitForRows(page,'progress','rows.some(p => p.words > 10000 && p.locations && p.fraction > 0)')
   await page.getByRole('button',{name:'Increase font size'}).click()
   await options(page); await page.getByText('Bookmark this passage').click()
   await page.getByRole('status').filter({hasText:'bookmarked'}).waitFor()
