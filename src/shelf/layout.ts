@@ -1,6 +1,8 @@
 import type { Book } from '../db'
 import { dimensions } from './bindings'
 import { Quaternion } from 'three'
+// Auto-scroll in shelf units per second; swap waits this long for the previous book to head home.
+export const AUTO_SPEED = 0.12, SWAP_DELAY_MS = 420
 export interface Slot { book: Book; x: number; w: number; h: number; d: number; tilt: number }
 export function layout(books: Book[]) {
   let length = 0
@@ -36,7 +38,7 @@ export class Motion {
   capture(active:boolean) { this.dragging = active; this.invalidate() }
   advance(dt:number) {
     if (this.paused || this.dragging || this.offset >= this.max) return
-    if (performance.now() >= this.manualUntil) this.offset = Math.min(this.max,this.offset + Math.min(dt,.05) * .09)
+    if (performance.now() >= this.manualUntil) this.offset = Math.min(this.max,this.offset + Math.min(dt,.05) * AUTO_SPEED)
     this.invalidate()
   }
   move(delta:number) {
@@ -56,6 +58,5 @@ export class Motion {
 }
 export interface Hits {
   down: (event: PointerEvent, id?: number, cover?: boolean, inspect?: boolean) => void
-  leave: () => void
-  hover: (id: number) => void
+  hover: (id: number | undefined) => void
 }

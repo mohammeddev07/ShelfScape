@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import { useSpring } from '@react-spring/three'
-import { BoxGeometry, Group, PlaneGeometry, Texture, MeshStandardMaterial } from 'three'
+import { BoxGeometry, Group, PlaneGeometry, Quaternion, Texture, MeshStandardMaterial, Vector3 } from 'three'
 import { db } from '../db'
 import { binding, pageTexture, woodTexture, shadowTexture } from './bindings'
 
@@ -12,6 +12,7 @@ const roundedSpine = new PlaneGeometry(1,1,16,1)
 const points = roundedSpine.attributes.position
 for (let i = 0; i < points.count; i++) points.setZ(i,.043 * Math.cos(Math.PI * points.getX(i)))
 roundedSpine.computeVertexNormals()
+const IDENTITY = new Quaternion(), tip = new Vector3()
 
 function useMap<T extends Texture | MeshStandardMaterial>(map: T) {
   useEffect(() => () => map.dispose(), [map])
@@ -20,7 +21,7 @@ function useMap<T extends Texture | MeshStandardMaterial>(map: T) {
 function BookModel({ slot, active, motion, left, hits, reduced, pages }: {
   slot: Slot; active: boolean; motion: Motion; left: number; hits: Hits; reduced: boolean; pages: MeshStandardMaterial
 }) {
-  const group = useRef<Group>(null), twist = useRef<Group>(null)
+  const group = useRef<Group>(null), twist = useRef<Group>(null), zoom = useRef(1)
   const invalidate = useThree(s => s.invalidate)
   const { book, w, h, d, tilt } = slot
   const spine = useMap(useMemo(() => binding(book,'spine'),[book]))
@@ -46,21 +47,28 @@ function BookModel({ slot, active, motion, left, hits, reduced, pages }: {
   useEffect(() => () => faces.forEach(map => map.dispose()),[faces])
   const springs = useSpring({ reveal: active ? 1 : 0, from: { reveal: 0 }, immediate: reduced,
     config: { tension: 190, friction: 27 }, onChange: () => invalidate() })
-  useFrame(() => {
+  useFrame((_,dt) => {
     if (!group.current || !twist.current) return
+    const q = twist.current.quaternion
+    if (active) { q.copy(motion.inspection.rotation); zoom.current = motion.inspection.zoom }
+    else if (reduced) { q.identity(); zoom.current = 1 }
+    else {
+      // Turn back as the book slides home instead of snapping square.
+      const k = 1 - .0005 ** dt
+      q.slerp(IDENTITY,k); zoom.current += (1 - zoom.current) * k
+      if (q.angleTo(IDENTITY) > 1e-3 || Math.abs(zoom.current - 1) > 1e-3) invalidate()
+    }
     const t = springs.reveal.get(), z = Math.min(t * 2, 1), turn = Math.max(0, (t - 0.16) / 0.84)
     group.current.position.set((left + slot.x - motion.offset) * (1 - t), (-0.94 + h / 2) * (1 - t) + 0.27 * t, 1.6 * z)
     group.current.rotation.set(0, -1.36 * turn, tilt * (1 - t) - 0.035 * turn)
-    group.current.scale.setScalar(1 + t * (0.29 + ((active ? motion.inspection.zoom : 1) - 1)))
-    if (active) twist.current.quaternion.copy(motion.inspection.rotation)
-    else twist.current.quaternion.identity()
+    group.current.scale.setScalar(1 + t * (0.29 + zoom.current - 1))
   })
   const down = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
     hits.down(e.nativeEvent, book.id, e.object.name === 'cover', active)
   }
   return <group name={'Book ' + book.id} ref={group} onPointerOver={e => { e.stopPropagation(); if (e.pointerType === 'mouse') hits.hover(book.id) }}
-    onPointerOut={hits.leave} onPointerDown={down}>
+    onPointerOut={() => hits.hover(undefined)} onPointerDown={down}>
     <group ref={twist}>
       <mesh geometry={box} material={pages} scale={[w * .91,h - .048,d - .043]}/>
       {[-1,1].map(sign => <group key={sign}>
@@ -81,8 +89,9 @@ function firstNear(slots: Slot[], x: number) {
   }
   return low
 }
-export function Scene({ shelf, selected, motion, hits, reduced, onLose }: {
+export function Scene({ shelf, selected, motion, hits, reduced, onLose, label }: {
   shelf: ReturnType<typeof layout>; selected?: number; motion: Motion; hits: Hits; reduced: boolean; onLose: () => void
+  label: { id?: number; el: RefObject<HTMLDivElement | null> }
 }) {
   const { size, invalidate, gl, setDpr } = useThree()
   const slowFrames = useRef(0)
@@ -97,13 +106,23 @@ export function Scene({ shelf, selected, motion, hits, reduced, onLose }: {
     gl.domElement.addEventListener('webglcontextlost',loss)
     return () => gl.domElement.removeEventListener('webglcontextlost',loss)
   },[motion,span,margin,size.width,shelf.length,invalidate,gl,onLose])
-  useFrame((_,dt) => {
+  const labelled = useMemo(() => shelf.slots.find(s => s.book.id === label.id),[shelf,label.id])
+  useEffect(() => invalidate(),[labelled,invalidate])
+  useFrame(({ camera },dt) => {
     if (dt > .034 && dt < .15) slowFrames.current++
     else slowFrames.current = Math.max(0,slowFrames.current - 1)
     if (slowFrames.current >= 12 && gl.getPixelRatio() > 1) { setDpr(1); slowFrames.current = 0 }
     motion.advance(dt)
     const first = firstNear(shelf.slots, motion.offset - 1)
     if (first !== windowStart) setWindowStart(first)
+    const el = label.el.current
+    if (!el) return
+    if (!labelled || motion.dragging || labelled.book.id === selected) { el.style.setProperty('visibility','hidden'); return }
+    // Spine top at its resting slot, computed from layout so it never lags the book's own frame update.
+    const { x, h, d, tilt } = labelled
+    tip.set(left + x - motion.offset - Math.sin(tilt) * h / 2, -0.94 + h / 2 + Math.cos(tilt) * h / 2, d / 2).project(camera)
+    el.style.setProperty('transform',`translate(${(tip.x + 1) / 2 * size.width}px,${(1 - tip.y) / 2 * size.height}px) translate(-50%,calc(-100% - 8px))`)
+    el.style.setProperty('visibility','visible')
   }, -1)
   const near = shelf.slots.slice(windowStart,firstNear(shelf.slots,motion.offset + span + 1) + 1)
   const picked = selected !== undefined && shelf.slots.find(s => s.book.id === selected)
