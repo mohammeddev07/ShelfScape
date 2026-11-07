@@ -196,6 +196,31 @@ try {
   console.log('PASS emulated touch selection, drag/open separation, cover activation, context-loss fallback')
   await touch.ctx.close()
 
+  const gallery = await context({reducedMotion:'reduce'})
+  const cloth = ['#394f40','#8b523b','#344958','#76505a','#79603b','#41625a','#715240','#3f5638','#9b6b38','#9b6745']
+  const long = 'The Extraordinary and Thoroughly Documented Account of a Very Long Voyage Across the Northern Seas and Back Again, Twice'
+  const titles = [['A','Ann Lee'],['War and Peace','Leo Tolstoy'],[long,''],['Анна Каренина','Лев Толстой'],['東京物語','小津安二郎'],
+    ['The Left Hand of Darkness','Ursula K. Le Guin'],['Notes',''],['Middlemarch','George Eliot'],['Beloved','Toni Morrison'],
+    ['The Name of the Rose','Umberto Eco'],["If on a winter's night a traveler",'Italo Calvino'],['Dune','Frank Herbert']]
+  assert.equal(long.length,120)
+  await seedRows(gallery.page,'books',titles.map(([title,author],i) => ({id:i+1,title,author,color:cloth[i % cloth.length],added:i+1})))
+  await gallery.page.reload(); await gallery.page.getByText('12 volumes',{exact:true}).waitFor()
+  await gallery.page.waitForFunction(() => window.testRenderer?.info.memory.textures > 0); await gallery.page.waitForTimeout(300)
+  await gallery.page.screenshot({path:join(outs,'covers-shelf.png')})
+  let n = 0
+  // Newest first on the shelf, and Next spine does not wrap, so visit in shelf order.
+  for (const title of ["If on a winter's night a traveler",'Notes','War and Peace']) {
+    const target = gallery.page.getByRole('button',{name:'Inspect ' + title,exact:true})
+    for (let i = 0; i < titles.length && !await target.count(); i++) await gallery.page.getByRole('button',{name:'Next spine'}).click()
+    await target.click(); await gallery.page.getByRole('button',{name:'Back to shelf'}).waitFor()
+    await gallery.page.waitForTimeout(300)
+    await gallery.page.screenshot({path:join(outs,`cover-${++n}.png`)})
+    await gallery.page.getByRole('button',{name:'Back to shelf'}).click()
+  }
+  assert.equal(n,3); assert.deepEqual(errors,[])
+  await gallery.ctx.close()
+  console.log('PASS generated cover gallery, screenshots in',outs)
+
   const large = await context({reducedMotion:'reduce'})
   await large.page.evaluate(async () => {
     const db = await new Promise(resolve => { const r = indexedDB.open('shelfscape');r.onsuccess=()=>resolve(r.result) })
