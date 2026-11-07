@@ -133,7 +133,7 @@ export function Scene({ shelf, selected, motion, hits, reduced, onLose, label }:
     <ambientLight intensity={night ? .95 : 1.55}/><directionalLight position={[-3,6,5]} intensity={night ? 1.7 : 2.3} color={night ? '#ffd9a8' : '#ffeed7'}/>
     <directionalLight position={[4,3,-3]} intensity={1.05}/>
     <mesh geometry={box} position={[0,-1.046,0]} scale={[span + 2,.19,1.65]}><meshStandardMaterial map={wood} roughness={.88}/></mesh>
-    <mesh geometry={box} position={[0,-1.15,.10]} scale={[span + 2,.035,1.40]}><meshStandardMaterial color="#644027"/></mesh>
+    <mesh geometry={box} position={[0,-1.143,.10]} scale={[span + 2,.02,1.40]}><meshStandardMaterial color="#8a6646"/></mesh>
     {picked && <mesh geometry={plane} position={[0,-1.06,1.78]} scale={[1.60,.17,1]}><meshBasicMaterial map={shade} transparent depthWrite={false}/></mesh>}
     {near.map(slot => <BookModel key={slot.book.id} slot={slot} left={left} active={selected === slot.book.id}
       motion={motion} reduced={reduced} hits={hits} pages={pageStock}/>)}

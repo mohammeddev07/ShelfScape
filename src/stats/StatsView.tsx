@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { liveQuery } from 'dexie'
 import { db, type Book, type Session, type Progress } from '../db'
 import { formatDuration, summarize } from './core'
+import { CaretLeftIcon } from '@phosphor-icons/react'
 import styles from '../App.module.css'
 
 const useLive = <T,>(query: () => Promise<T[]>) => {
@@ -22,7 +23,8 @@ export default function StatsView({ books, back }: { books: Book[]; back: () => 
     ['Streak', `${s.streakDays} ${s.streakDays === 1 ? 'day' : 'days'}`], ['Completed', s.started ? `${s.finished} of ${s.started} books` : '—'],
   ]
   return <section className={styles.stats}>
-    <header className={styles.readerHeader}><button onClick={back}>‹ Library</button><h1>Reading stats</h1><span className={styles.statsSpacer} aria-hidden="true"/></header>
+    <header className={styles.statsHeader}><button className={styles.ghost} onClick={back}><CaretLeftIcon size={18} aria-hidden="true"/>Library</button></header>
+    <h1>Reading stats</h1>
     <dl className={styles.figures}>{figures.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
     <h2>Last 14 days</h2>
     <div className={styles.chart} role="img" aria-label={`Reading time per day over the last 14 days, ${formatDuration(s.dailyMs.reduce((a, d) => a + d.ms, 0))} in total`}>

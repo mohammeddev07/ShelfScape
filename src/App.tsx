@@ -4,6 +4,7 @@ import { db, errorMessage, type Book } from './db'
 import { samples } from './library/samples'
 import { Shelf } from './Shelf'
 import { getTheme, setTheme, type Theme } from './theme'
+import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, ChartBarIcon, MagnifyingGlassIcon, PlusIcon, SlidersHorizontalIcon, XIcon } from '@phosphor-icons/react'
 import styles from './App.module.css'
 
 const Reader = lazy(() => import('./reader/Reader'))
@@ -81,28 +82,28 @@ export default function App() {
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
       onDrop={e => { e.preventDefault(); setDragOver(false); void importFiles([...e.dataTransfer.files]) }}>
       <header className={styles.mast}><div className={styles.wordmark}><BookMark/>ShelfScape</div>
-        <div className={styles.mastTools}><button className={styles.tools} onClick={() => setStats(true)}>Reading stats</button>
-        <button className={styles.tools} onClick={() => setTools(true)}>Library tools <span aria-hidden="true">☷</span></button></div></header>
+        <div className={styles.mastTools}><button className={styles.ghost} onClick={() => setStats(true)}><ChartBarIcon size={20} aria-hidden="true"/><span>Reading stats</span></button>
+        <button className={styles.ghost} onClick={() => setTools(true)}><SlidersHorizontalIcon size={20} aria-hidden="true"/><span>Library tools</span></button></div></header>
       <div className={styles.heading}><div className={styles.titleRow}><h1>{sample ? 'Sample shelf' : 'My library'}</h1>
-        <button className={styles.primary} disabled={busy} onClick={() => choose()}><span aria-hidden="true">＋</span> Import</button></div>
-        <div className={styles.searchRow} onFocus={() => setEditing(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setEditing(false) }}><label className={styles.search}><i aria-hidden="true"/>
+        <button className={styles.primary} disabled={busy} onClick={() => choose()}><PlusIcon size={18} aria-hidden="true"/>Import</button></div>
+        <div className={styles.searchRow} onFocus={() => setEditing(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setEditing(false) }}><label className={styles.search}><MagnifyingGlassIcon size={18} aria-hidden="true"/>
           <input type="search" aria-label="Search by title or author" placeholder="Search your books" value={query} onChange={e => setQuery(e.target.value)}/></label>
           <label className={styles.sort}><span>Sort</span><select aria-label="Sort books" value={sort} onChange={e => setSort(e.target.value as Sort)}>
-            <option value="added">Date added</option><option value="title">Title</option><option value="author">Author</option></select></label></div>
+            <option value="added">Date added</option><option value="title">Title</option><option value="author">Author</option></select><CaretDownIcon size={14} aria-hidden="true"/></label></div>
       </div>
       <Shelf paused={editing || tools || busy} books={displayed} reading={!!reader || stats} onOpen={book => book.format ? setReader(book) : choose(book.id)} label={sample ? 'Sample bookshelf' : 'Personal bookshelf'}>
         {!displayed.length && <div className={styles.empty}>
           {!query && <img src={import.meta.env.BASE_URL + 'art/bookplate.jpg'} alt="" className={styles.bookplate}/>}
           <div className={styles.invitation}><h2>{query ? 'No matching books' : loaded ? 'A place for your books' : 'Opening your library…'}</h2>
             <p>{query ? 'Try another title or author.' : 'Bring your PDFs and EPUBs to the shelf.'}</p>
-            {query ? <button onClick={() => setQuery('')}>Clear search</button> :
-            <button onClick={() => changeShelf(true)}>Explore sample shelf <span aria-hidden="true">→</span></button>}</div>
+            {query ? <button className={styles.ghost} onClick={() => setQuery('')}>Clear search</button> :
+            <button className={styles.ghost} onClick={() => changeShelf(true)}>Explore sample shelf<CaretRightIcon size={16} aria-hidden="true"/></button>}</div>
         </div>}
       </Shelf>
-      <div className={styles.foot}><span><i aria-hidden="true"/> Stored on this device</span>
-        {sample ? <button onClick={() => changeShelf(false)}>← My library</button> : books.length > 0 ? <button onClick={() => changeShelf(true)}>Explore sample shelf →</button> : <span>PDF &amp; EPUB</span>}</div>
+      <div className={styles.foot}><span>Stored on this device</span>
+        {sample ? <button className={styles.ghost} onClick={() => changeShelf(false)}><CaretLeftIcon size={16} aria-hidden="true"/>My library</button> : books.length > 0 ? <button className={styles.ghost} onClick={() => changeShelf(true)}>Explore sample shelf<CaretRightIcon size={16} aria-hidden="true"/></button> : <span>PDF &amp; EPUB</span>}</div>
       {results.length > 0 && <aside className={styles.results} aria-live="polite"><div><strong>{busy ? 'Importing books' : 'Import results'}</strong>
-        {!busy && <button onClick={() => setResults([])} aria-label="Dismiss import results">×</button>}</div>
+        {!busy && <button className={styles.icon} onClick={() => setResults([])} aria-label="Dismiss import results"><XIcon size={18} aria-hidden="true"/></button>}</div>
         {results.map((r,i) => <p key={i} className={r.failed ? styles.error : ''}>{r.name} · {r.message}</p>)}</aside>}
       {note && !tools && <p role="status" className={styles.note}>{note}</p>}
       {dragOver && <div className={styles.drop}>Drop books to import</div>}
@@ -112,13 +113,13 @@ export default function App() {
     }}/>
     <input ref={restoreInput} type="file" hidden accept=".zip" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void restore(f) }}/>
     <dialog ref={dialog} onClose={() => setTools(false)} className={styles.dialog}>
-      <header><h2>Library tools</h2><button aria-label="Close library tools" onClick={() => setTools(false)}>×</button></header>
+      <header><h2>Library tools</h2><button className={styles.icon} aria-label="Close library tools" onClick={() => setTools(false)}><XIcon size={20} aria-hidden="true"/></button></header>
       <h3>Library backup</h3><p>Save a copy of your books, reading positions, and bookmarks.</p>
-      <div className={styles.actions}><button onClick={exportFiles}>Export backup</button><button onClick={() => restoreInput.current?.click()}>Restore backup</button></div>
+      <div className={styles.actions}><button className={styles.secondary} onClick={exportFiles}>Export backup</button><button className={styles.secondary} onClick={() => restoreInput.current?.click()}>Restore backup</button></div>
       <h3>Appearance</h3><label className={styles.sort}><span>Theme</span><select aria-label="Theme" value={theme} onChange={e => { setTheme(e.target.value as Theme); setThemeState(getTheme()) }}>
-        <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><CaretDownIcon size={14} aria-hidden="true"/></label>
       <h3>Device storage</h3><p>{persisted ? 'Persistent storage is enabled.' : 'Your browser manages storage on this device.'}</p>
-      {!persisted && <button onClick={() => persist().then(ok => setNote(ok ? 'Storage protected.' : 'Your browser manages this permission. Keep a backup.')).catch(e => setNote(errorMessage(e)))}>Request persistent storage</button>}
+      {!persisted && <button className={styles.secondary} onClick={() => persist().then(ok => setNote(ok ? 'Storage protected.' : 'Your browser manages this permission. Keep a backup.')).catch(e => setNote(errorMessage(e)))}>Request persistent storage</button>}
       <h3>Install ShelfScape</h3><p>On iPhone, open Safari’s Share menu and choose Add to Home Screen. On Android or desktop, choose Install app from the browser menu.</p>
       <a href={import.meta.env.BASE_URL + 'samples/CREDITS.txt'} target="_blank" rel="noreferrer">Sample book credits</a>
       <p role="status">{note}</p>
