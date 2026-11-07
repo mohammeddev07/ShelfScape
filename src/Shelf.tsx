@@ -4,7 +4,9 @@ import { WebGLRenderer } from 'three'
 import { Scene } from './shelf/Scene'
 import { layout, Motion, SWAP_DELAY_MS } from './shelf/layout'
 import { rotateBy, rotateDrag, type PointerTrack } from './shelf/interaction'
-import type { Book } from './db'
+import { liveQuery } from 'dexie'
+import { db, type Book } from './db'
+import { formatDuration } from './stats/core'
 import styles from './App.module.css'
 
 class GraphicsBoundary extends Component<{ children: ReactNode; fail: () => void }, { failed: boolean }> {
@@ -12,6 +14,20 @@ class GraphicsBoundary extends Component<{ children: ReactNode; fail: () => void
   static getDerivedStateFromError() { return { failed: true } }
   componentDidCatch() { this.props.fail() }
   render() { return this.state.failed ? null : this.props.children }
+}
+interface Reading { id: number; fraction: number; finished: boolean; ms: number }
+/** Progress and time for one book; undefined until it has been opened. Re-queried only when that book's rows change. */
+function useReading(id?: number) {
+  const [reading,setReading] = useState<Reading>()
+  useEffect(() => {
+    if (id === undefined) return
+    const sub = liveQuery(async () => {
+      const [p,list] = await Promise.all([db.progress.get(id),db.sessions.where('book').equals(id).toArray()])
+      return p || list.length ? { id, fraction:p?.fraction ?? 0, finished:!!p?.finished, ms:list.reduce((a,s) => a + s.active,0) } : undefined
+    }).subscribe({ next:setReading,error:() => setReading(undefined) })
+    return () => sub.unsubscribe()
+  },[id])
+  return reading?.id === id ? reading : undefined
 }
 interface Props { paused: boolean; books: Book[]; reading: boolean; onOpen: (b: Book) => void; children?: ReactNode; label: string }
 export function Shelf({ books, paused, reading, onOpen, children, label }: Props) {
@@ -35,6 +51,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
     return () => { clearTimeout(swap.current); swap.current = 0 }
   },[books,motion])
   const current = books.find(b => b.id === selected), labelBook = books.find(b => b.id === labelled)
+  const labelRead = useReading(labelBook?.id), currentRead = useReading(current?.id)
   const activeIndex = Math.max(0,Math.min(index,books.length - 1))
   const fail = useCallback(() => setFailed(true),[])
   useEffect(() => {
@@ -161,7 +178,7 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
           setLabel(id)
         } }} onLose={fail}/>
       </Canvas></GraphicsBoundary>}
-      {labelBook && !failed && <div ref={labelEl} role="tooltip" className={styles.label}>{labelBook.title}<small>{labelBook.author || 'Author unknown'}</small></div>}
+      {labelBook && !failed && <div ref={labelEl} role="tooltip" className={styles.label}>{labelBook.title}{labelBook.author && <small>{labelBook.author}</small>}{labelRead && <small>{Math.round(labelRead.fraction * 100)}% read</small>}</div>}
       {failed && <div className={styles.fallback}>
         {books.length > 0 && <><p>Book list</p><ul>{books.map(book => <li key={book.id}><button onClick={() => onOpen(book)}>{book.title} <small>{book.author}</small></button></li>)}</ul></>}
       </div>}
@@ -179,7 +196,8 @@ export function Shelf({ books, paused, reading, onOpen, children, label }: Props
       </div>}
     </div>
     {current && !failed && <div className={styles.preview} aria-label={'Inspect ' + current.title}>
-      <div><h2>{current.title}</h2><p>{current.author || 'Author unknown'}</p></div>
+      <div><h2>{current.title}</h2>{current.author && <p>{current.author}</p>}
+        {currentRead && <p>{currentRead.finished ? 'Finished' : Math.round(currentRead.fraction * 100) + '% read'} · {formatDuration(currentRead.ms)}</p>}</div>
       <div className={styles.actions}>
         <button className={styles.primary} ref={openButton} onClick={() => onOpen(current)}>{current.format ? 'Open book' : 'Attach file'}</button>
         <button aria-label="Zoom out" onClick={() => motion.zoomBy(-.12)}>−</button><button aria-label="Zoom in" onClick={() => motion.zoomBy(.12)}>+</button>

@@ -19,7 +19,7 @@ export default function StatsView({ books, back }: { books: Book[]; back: () => 
   const max = Math.max(...s.dailyMs.map(d => d.ms), 1)
   const figures: [string, string][] = [
     ['This week', formatDuration(s.weekMs)], ['Reading speed', s.wpm === null ? '—' : `${s.wpm} wpm`],
-    ['Streak', `${s.streakDays} days`], ['Completed', s.started ? `${s.finished} of ${s.started} books` : '—'],
+    ['Streak', `${s.streakDays} ${s.streakDays === 1 ? 'day' : 'days'}`], ['Completed', s.started ? `${s.finished} of ${s.started} books` : '—'],
   ]
   return <section className={styles.stats}>
     <header className={styles.readerHeader}><button onClick={back}>‹ Library</button><h1>Reading stats</h1><span className={styles.statsSpacer} aria-hidden="true"/></header>
