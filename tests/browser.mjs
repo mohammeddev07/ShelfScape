@@ -152,6 +152,17 @@ try {
   const savedPdf = (await idbRows(page,'bookmarks'))[0].location
   assert.equal(savedPdf.page,2)
   assert.match(savedPdf.text,/Little Lamb/)
+  const box = await green.first().boundingBox()
+  await page.mouse.click(box.x + box.width / 2,box.y + box.height / 2)
+  await page.getByRole('textbox',{name:'Note'}).fill('Remember the lamb')
+  await waitForRows(page,'annotations','rows.some(a => a.note === "Remember the lamb")')
+  await page.getByRole('button',{name:'Idea',exact:true}).click(); await page.getByRole('button',{name:'Idea',exact:true}).click()
+  await page.evaluate(() => { navigator.canShare = undefined })   // desktop Chrome can share files; test the download fallback
+  const exported = page.waitForEvent('download')
+  await page.getByRole('button',{name:'Export',exact:true}).click()
+  const notes = await readFile(await (await exported).path(),'utf8')
+  assert.match(notes,/## Idea\n> .*Little Lamb/); assert(notes.includes('Remember the lamb'))
+  await page.getByRole('button',{name:'Close notes'}).click()
   await back(page); await search.fill('Burnett'); await inspect(page); await open(page)
   await page.locator('iframe').first().waitFor()
   await page.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.body?.children.length > 0)

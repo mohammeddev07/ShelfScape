@@ -4,6 +4,7 @@ import { db, original, errorMessage, type Annotation, type Book, type HighlightC
 import type { ReaderAdapter, ReaderStatus } from './adapter'
 import { FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import Toolbar from '../annotations/Toolbar'
+import NotesPanel from '../annotations/NotesPanel'
 import styles from '../App.module.css'
 
 const percent = (progress: number) => Math.round(progress * 100) + '%'
@@ -17,6 +18,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNotice] = useState('')
   const [menu,setMenu] = useState(false), [page,setPage] = useState('')
   const [list,setList] = useState<Annotation[]>([]), [picked,setPicked] = useState<DOMRect>()
+  const [panel,setPanel] = useState(false), [editing,setEditing] = useState<number>()
+  const edit = (id?: number) => { if (id) { setEditing(id); setPanel(true) } }
   useEffect(() => {
     const sub = liveQuery(() => db.annotations.where({ book:book.id }).toArray()).subscribe({ next:setList,error:e => setError(errorMessage(e)) })
     return () => sub.unsubscribe()
@@ -60,7 +63,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
           if (active) selectedPassage.current = adapter.current?.location(true)
           setPicked(active ? adapter.current?.selectionRect() : undefined)
         },
-        activate() {},
+        activate(key) { if (key !== 'bookmark') edit(Number(key)) },
         change(location,state) {
           if (controller.signal.aborted) return
           pending = location; fraction = state.progress; end = state.last
@@ -127,13 +130,14 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   }
   return <main className={styles.reader} onPointerDown={touch} onWheel={touch} onKeyDown={e => {
     touch()
-    if (e.key === 'Escape') { if (menu) setMenu(false); else back() }
+    if (e.key === 'Escape') { if (menu) setMenu(false); else if (panel) setPanel(false); else back() }
     if (e.target === host.current && ['ArrowLeft','ArrowRight'].includes(e.key)) {
       e.preventDefault(); run(adapter.current?.step(e.key === 'ArrowLeft' ? -1 : 1))
     }
   }}>
     <header className={styles.readerHeader}><button ref={backButton} onClick={back}>‹ Library</button><h1>{book.title}</h1>
-      <button onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}>•••</button></header>
+      <div><button aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}>✎</button>
+      <button onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}>•••</button></div></header>
     {menu && <aside className={styles.readerMenu}>
       <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}>Bookmark this passage</button>
       <button disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => { run(highlight('yellow')); setMenu(false) }}>Highlight selection</button>
@@ -147,7 +151,9 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     {!ready && !error && <p className={styles.readerLoading}>Opening your book…</p>}
     <div ref={host} className={styles.document} tabIndex={0} aria-label={book.title + ' reading area'}
       onScroll={() => { if (picked) setPicked(adapter.current?.selectionRect()) }}/>
-    {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow'))}/>}
+    {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow').then(edit))}/>}
+    {panel && <NotesPanel book={book} list={list} editing={editing} onClose={() => setPanel(false)}
+      onJump={a => jump({ ...a.location,text:undefined })}/>}
     <p role="status" className={styles.readerNotice}>{notice}</p>
     <footer className={styles.readerFooter}>
       <div><button aria-label={book.format === 'pdf' ? 'Zoom out' : 'Decrease font size'} disabled={!ready} onClick={() => resize(-1)}>A−</button>
