@@ -1,7 +1,8 @@
 import ePub, { EpubCFI, type Contents, type Location as EpubLocation, type NavItem } from 'epubjs'
-import type { ReaderAdapter, ReaderInput } from './adapter'
+import type { Paint, ReaderAdapter, ReaderInput } from './adapter'
 import type { Location } from '../db'
 import { countWords } from '../stats/core'
+import { COLORS } from '../annotations/core'
 
 // Installed before epub.js serializes a chapter into its script-disabled iframe.
 function secureChapter(doc: Document) {
@@ -19,11 +20,29 @@ function secureChapter(doc: Document) {
   policy.setAttribute('content',"default-src 'none'; img-src data: blob:; style-src 'unsafe-inline' blob: data:; font-src blob: data:; media-src blob: data:; form-action 'none'")
   head.prepend(policy)
 }
+// epub.js encodes element boundary points (triple-click, selectNodeContents) as text offsets, so anchor them in text nodes.
+function textRange(range: Range) {
+  const root = range.commonAncestorContainer, walker = root.ownerDocument!.createTreeWalker(root,NodeFilter.SHOW_TEXT), texts: Node[] = []
+  while (walker.nextNode()) if (walker.currentNode.textContent && range.intersectsNode(walker.currentNode)) texts.push(walker.currentNode)
+  const first = texts[0], last = texts.at(-1)
+  if (!first || !last) return range
+  const text = range.cloneRange()
+  if (first !== range.startContainer) text.setStart(first,0)
+  if (last !== range.endContainer) text.setEnd(last,last.textContent!.length)
+  return text
+}
 export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
   const { element,signal,change } = input
   const book = ePub({ replacements:'blobUrl' })
-  let opened = false, font = 100, last: Location | undefined
-  const cleanup = () => { if (opened) book.destroy() }
+  let opened = false, font = 100, last: Location | undefined, measuring: Promise<unknown> = Promise.resolve()
+  // book.destroy() mid-load makes the section's pending load throw "reading 'content'"; inside locations.generate()
+  // that rejection lands on a queue promise nobody handles. Drop the queued sections and destroy once the load in flight settles.
+  const cleanup = () => {
+    if (!opened) return
+    const generating = book.locations as unknown as { q?: { clear(): void } }   // epub.js internals: its task queue
+    generating.q?.clear()
+    measuring.then(() => book.destroy(),() => book.destroy())
+  }
   signal.addEventListener('abort',cleanup,{ once:true })
   try {
     await book.open(await input.file.arrayBuffer(),'binary')
@@ -42,6 +61,10 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
     flatten(book.navigation.toc)
     rendition.themes.default({ body:{ color:'#33291f !important',background:'transparent !important','font-family':'Georgia,serif !important',
       'line-height':'1.65 !important' },'a':{color:'#924324 !important'} })
+    // Scoped to the class epub.js puts on the chapter body, since selecting 'default' later does not remove these rules.
+    // color-scheme matches the page's, or Chrome paints the frame an opaque white canvas.
+    rendition.themes.register('night',{ ':root:has(> body.night)':{ 'color-scheme':'dark' },
+      'body.night':{ color:'#e9dfcf !important',background:'transparent !important' },'.night a':{ color:'#e0916a !important' } })
     rendition.themes.fontSize('100%')
     rendition.hooks.content.register((chapter: Contents) => {
       chapter.document.addEventListener('keydown', e => {
@@ -49,9 +72,19 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
           e.preventDefault(); (e.key === 'ArrowRight' ? rendition.next() : rendition.prev()).catch(input.error)
         }
       })
+      chapter.document.addEventListener('selectionchange',() => { if (chapter.window.getSelection()?.isCollapsed) input.select(false) })
       const frame = chapter.window.frameElement
       frame?.setAttribute('title',chapter.document.title || 'Book chapter')
     })
+    rendition.on('selected',() => input.select(true))
+    // epub.js keys annotations by cfi and type, so a changed color is removed and added again.
+    let painted = new Map<string,Paint & { cfi:string; type:string }>()
+    const selection = () => {
+      for (const content of rendition.getContents() as unknown as Contents[]) {
+        const selected = content.window.getSelection()
+        if (selected && !selected.isCollapsed && selected.rangeCount) return { content,selected,range:textRange(selected.getRangeAt(0)) }
+      }
+    }
     const sections = (book.spine as unknown as { length: number }).length, cfi = new EpubCFI()
     // The last TOC entry in this section whose anchor starts at or before the page.
     // ponytail: assumes TOC and spine hrefs share a directory; resolve both against the package if a book differs.
@@ -91,27 +124,45 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
       },
       async jump(to) { if (typeof to === 'string') await rendition.display(to); else if (to.format === 'epub') await rendition.display(to.cfi) },
       location(selected) {
-        if (selected) for (const content of rendition.getContents() as unknown as Contents[]) {
-          const selection = content.window.getSelection()
-          if (selection && !selection.isCollapsed && selection.rangeCount) return {
-            format:'epub',cfi:content.cfiFromRange(selection.getRangeAt(0)),text:selection.toString().slice(0,512) }
-        }
-        return last
+        const picked = selected && selection()
+        return picked ? { format:'epub',cfi:picked.content.cfiFromRange(picked.range),text:picked.selected.toString().slice(0,512) } : last
       },
-      async measure(stop) {
-        if (!book.locations.length()) await book.locations.generate(1000)
-        let words = 0
-        for (let n = 0; n < sections; n++) {
-          stop.throwIfAborted()
-          const section = book.spine.get(n)
-          await section.load(book.load.bind(book))
-          words += countWords(section.document.body?.textContent ?? '')
-          section.unload()
-          await new Promise(r => setTimeout(r))
+      paint(marks) {
+        const next = new Map(marks.flatMap(mark => mark.location.format === 'epub' && mark.location.text ? [{ ...mark,cfi:mark.location.cfi,
+          type:mark.style === 'bookmark' ? 'underline' : 'highlight' }] : []).map(mark => [mark.type + mark.cfi + mark.style,mark]))
+        for (const [id,mark] of painted) if (!next.has(id)) rendition.annotations.remove(mark.cfi,mark.type)
+        for (const [id,{ key,cfi,style }] of next) if (!painted.has(id)) {
+          if (style === 'bookmark') rendition.annotations.underline(cfi,{ key },undefined,'mark-bookmark')   // drawn by App.module.css
+          else rendition.annotations.highlight(cfi,{ key },() => input.activate(key),'mark-' + style,
+            { fill:COLORS[style].fill,'fill-opacity':'0.4','mix-blend-mode':'multiply' })
         }
-        stop.throwIfAborted()
-        if (current) relocated(current)
-        return { words,locations:book.locations.save() }
+        painted = next
+      },
+      theme: mode => rendition.themes.select(mode === 'dark' ? 'night' : 'default'),
+      selectionRect() {
+        const picked = selection(), frame = picked?.content.window.frameElement?.getBoundingClientRect()
+        if (!picked || !frame) return
+        const r = picked.range.getBoundingClientRect()
+        return new DOMRect(r.x + frame.x,r.y + frame.y,r.width,r.height)
+      },
+      measure(stop) {
+        const run = (async () => {
+          if (!book.locations.length()) await book.locations.generate(1000)
+          let words = 0
+          for (let n = 0; n < sections; n++) {
+            stop.throwIfAborted()
+            const section = book.spine.get(n)
+            await section.load(book.load.bind(book))
+            words += countWords(section.document.body?.textContent ?? '')
+            section.unload()
+            await new Promise(r => setTimeout(r))
+          }
+          stop.throwIfAborted()
+          if (current) relocated(current)
+          return { words,locations:book.locations.save() }
+        })()
+        measuring = run
+        return run
       },
     }
   } catch (error) { cleanup(); throw error }
