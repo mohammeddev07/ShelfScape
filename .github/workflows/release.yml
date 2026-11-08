@@ -1,22 +1,13 @@
 name: Release
 
-# Merge develop -> release: tags the next version and deploys it to Cloudflare Pages.
-# To roll back (or forward), run this workflow by hand with an existing tag
-# (e.g. v0.1.1); that run waits for approval.
-#
-# One-time setup:
-#   Cloudflare: create a Pages project (Direct Upload, production branch `release`).
-#   Repo secrets:   CLOUDFLARE_API_TOKEN (Pages: Edit), CLOUDFLARE_ACCOUNT_ID
-#   Repo variable:  CLOUDFLARE_PROJECT_NAME
-#   Repo environments: `production`, and `production-rollback` with required reviewers.
+# Merge develop -> release: checks the build and tags the next version.
+# Cloudflare Pages builds and deploys `release` on its own (it is that project's
+# production branch, and `develop` gets preview deploys), so rolling back is done
+# in the Cloudflare dashboard: Deployments -> pick an older one -> Rollback.
+
 on:
   push:
     branches: [release]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing version tag to deploy, e.g. v0.1.1
-        required: true
 
 permissions:
   contents: read
@@ -26,30 +17,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Only exists to pause for approval: the rollback environment has required
-  # reviewers, the normal one doesn't.
-  gate:
+  release:
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && 'production-rollback' || 'production' }}
-    steps:
-      - env:
-          WHAT: ${{ inputs.tag || github.sha }}
-        run: echo "Deploying $WHAT"
-
-  build:
-    needs: gate
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          # Tags only on a rollback, so a typo can't deploy a branch.
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.sha }}
           fetch-depth: 0
       - name: Next version
         id: tag
-        if: github.event_name == 'push'
         # package.json's version if it isn't tagged yet (bump it in the PR for
         # a minor or major release), otherwise the latest tag plus one patch.
         run: |
@@ -67,42 +44,10 @@ jobs:
       - run: npm run lint
       - run: npm run test:unit
       - run: npm run build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist
-          if-no-files-found: error
-
-  cloudflare:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: cloudflare-pages
-      url: ${{ steps.deploy.outputs.deployment-url }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-      - id: deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # --branch=release is the project's production branch, so this is the live deployment.
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }} --branch=release --commit-hash=${{ github.sha }} --commit-dirty=true
-
-  # After the deploy succeeds, so a failed deploy leaves no tag behind and
-  # re-running the workflow picks the same version.
-  release:
-    if: github.event_name == 'push'
-    needs: [build, cloudflare]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
+      # After the checks pass, so a failing build leaves no tag behind and
+      # re-running the workflow picks the same version.
       - name: Tag and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.build.outputs.tag }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
