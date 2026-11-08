@@ -1,14 +1,15 @@
 import JSZip from 'jszip'
-import { db, type Annotation, type Book, type Location, type Mark, type Progress, type Session } from '../db'
-import { COLOR_ORDER } from '../annotations/core'
+import { db, type Annotation, type Book, type Bookmark, type BookShelf, type Location, type Mark, type Progress, type Session } from '../db'
+import { COLOR_ORDER, sameSpot } from '../annotations/core'
 import { digest } from './import'
 
-interface Manifest { version: 1 | 2; books: Book[]; positions: Mark[]; bookmarks: Mark[]; sessions: Session[]; progress: Progress[]; annotations: Annotation[] }
+interface Manifest { version: 1 | 2 | 3 | 4; books: Book[]; positions: Mark[]; bookmarks: Bookmark[]; sessions: Session[]; progress: Progress[]; annotations: Annotation[]; shelves: BookShelf[] }
 export async function exportBackup() {
   const zip = new JSZip()
   const snapshot = await db.transaction('r', db.tables, async () => ({
-    manifest: { version: 2, books: await db.books.toArray(), positions: await db.positions.toArray(), bookmarks: await db.bookmarks.toArray(),
-      sessions: await db.sessions.toArray(), progress: await db.progress.toArray(), annotations: await db.annotations.toArray() },
+    manifest: { version: 4, books: await db.books.toArray(), positions: await db.positions.toArray(), bookmarks: await db.marks.toArray(),
+      sessions: await db.sessions.toArray(), progress: await db.progress.toArray(), annotations: await db.annotations.toArray(),
+      shelves: await db.shelves.toArray() },
     files: await db.files.toArray(), art: await db.art.toArray(),
   }))
   zip.file('library.json', JSON.stringify(snapshot.manifest))
@@ -27,7 +28,12 @@ export async function restoreBackup(file: File) {
   const zip = await JSZip.loadAsync(file)
   const manifest: Manifest = JSON.parse(await zip.file('library.json')?.async('string') || 'null')
   if (manifest?.version === 1) Object.assign(manifest, { sessions: [], progress: [], annotations: [] })
-  if (!manifest || ![1, 2].includes(manifest.version) || ![manifest.books, manifest.positions, manifest.bookmarks, manifest.sessions, manifest.progress, manifest.annotations].every(Array.isArray))
+  if (manifest && manifest.version < 3) manifest.shelves = []
+  // Before v4 a book had one bookmark, keyed by book id.
+  if (manifest && manifest.version < 4 && Array.isArray(manifest.bookmarks))
+    manifest.bookmarks = (manifest.bookmarks as unknown as Mark[]).map(m => ({ book:m?.id,location:m?.location,order:0,created:0,
+      where:m?.location?.format === 'pdf' ? 'Page ' + m.location.page : 'Bookmark',excerpt:m?.location?.text ?? '' }))
+  if (!manifest || ![1, 2, 3, 4].includes(manifest.version) || ![manifest.books, manifest.positions, manifest.bookmarks, manifest.sessions, manifest.progress, manifest.annotations, manifest.shelves].every(Array.isArray))
     throw new Error('Choose a ShelfScape backup.')
   const ids = new Set<number>()
   const entries = await Promise.all(manifest.books.map(async book => {
@@ -40,7 +46,7 @@ export async function restoreBackup(file: File) {
     const art = await zip.file('art/' + book.id)?.async('blob')
     return { book, file: bytes && new Blob([bytes]), art }
   }))
-  for (const mark of [...manifest.positions, ...manifest.bookmarks])
+  for (const mark of manifest.positions)
     if (!Number.isSafeInteger(mark.id) || (mark.id >= 0 && !ids.has(mark.id)) || !validLocation(mark.location))
       throw new Error('Invalid reading location in backup.')
   const known = (id: number) => Number.isSafeInteger(id) && (id < 0 || ids.has(id))
@@ -55,6 +61,11 @@ export async function restoreBackup(file: File) {
   rows(manifest.annotations, (r: Annotation) => known(r.book) && COLOR_ORDER.includes(r.color) && typeof r.note === 'string' &&
     typeof r.where === 'string' && validLocation(r.location) && typeof r.location.text === 'string' && !!r.location.text &&
     num(r.order, 0, 1) && num(r.created) && num(r.updated))
+  for (const r of manifest.bookmarks)
+    if (!r || !known(r.book) || !validLocation(r.location) || typeof r.where !== 'string' || typeof r.excerpt !== 'string' || !num(r.order, 0, 1) || !num(r.created, 0))
+      throw new Error('Invalid reading location in backup.')
+  rows(manifest.shelves, (r: BookShelf) => typeof r.name === 'string' && !!r.name.trim() && r.name.length <= 200 &&
+    Array.isArray(r.books) && r.books.every(id => Number.isSafeInteger(id) && ids.has(id)))
   await db.transaction('rw', db.tables, async () => {
     const map = new Map<number, number>()
     for (const { book, file, art } of entries) {
@@ -65,9 +76,12 @@ export async function restoreBackup(file: File) {
       if (file) await db.files.put({ id, blob: file })
       if (art) await db.art.put({ id, blob: art })
     }
-    for (const key of ['positions','bookmarks'] as const)
-      for (const mark of manifest[key]) await db[key].put({ ...mark, id: map.get(mark.id) ?? mark.id })
+    for (const mark of manifest.positions) await db.positions.put({ ...mark, id: map.get(mark.id) ?? mark.id })
     const remap = (id: number) => map.get(id) ?? id
+    for (const incoming of manifest.bookmarks) {
+      const row: Bookmark = { ...incoming, book: remap(incoming.book) }; delete row.id
+      if (!(await db.marks.where('book').equals(row.book).toArray()).some(m => sameSpot(m.location, row.location))) await db.marks.add(row)
+    }
     for (const incoming of manifest.sessions) {
       const row: Session = { ...incoming, book: remap(incoming.book) }; delete row.id
       if (!await db.sessions.where('[book+start]').equals([row.book, row.start]).count()) await db.sessions.add(row)
@@ -82,6 +96,13 @@ export async function restoreBackup(file: File) {
       const finished = row.finished || existing?.finished ? earliest(row.finished, existing?.finished) : undefined
       if (!existing || row.updated > existing.updated) await db.progress.put({ ...row, finished })
       else if (finished !== existing.finished) await db.progress.update(row.id, { finished })
+    }
+    // Shelves merge by name, so restoring twice or into a library with the same shelf adds no duplicates.
+    for (const incoming of manifest.shelves) {
+      const name = incoming.name.trim(), books = incoming.books.map(remap)
+      const existing = await db.shelves.where('name').equals(name).first()
+      if (existing) await db.shelves.update(existing.id, { books: [...new Set([...existing.books, ...books])] })
+      else await db.shelves.add({ name, books, created: num(incoming.created) ? incoming.created : Date.now() } as BookShelf)
     }
   })
 }

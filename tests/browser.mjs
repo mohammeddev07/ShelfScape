@@ -12,7 +12,10 @@ const browser = await chromium.launch({ executablePath:process.env.CHROME_PATH |
 const outs = await mkdtemp(join(tmpdir(),'shelfscape-browser-'))
 const errors = []
 const pdf = resolve('public/samples/songs.pdf'), epub = resolve('public/samples/secret-garden.epub')
-const inspect = page => page.getByRole('button',{ name:/^Inspect / }).click()
+const stageOf = page => page.locator('[aria-roledescription=bookshelf]')
+const caption = page => page.locator('section h2')
+// Keyboard: Enter on the focused shelf takes the browsed book out.
+const inspect = async page => { await stageOf(page).press('Enter'); await page.getByRole('button',{name:'Open book',exact:true}).waitFor() }
 const open = page => page.getByRole('button',{name:'Open book',exact:true}).click()
 const back = page => page.getByRole('button',{name:/^‹? ?Library$/}).click()
 const options = page => page.getByRole('button',{name:'Reading options'}).click()
@@ -149,7 +152,7 @@ try {
   await back(page); await inspect(page); await open(page)
   await page.getByText('The Lamb',{exact:true}).waitFor()
   await green.first().waitFor(); await page.locator('.highlightLayer .mark.bookmark').first().waitFor()
-  const savedPdf = (await idbRows(page,'bookmarks'))[0].location
+  const savedPdf = (await idbRows(page,'marks'))[0].location
   assert.equal(savedPdf.page,2)
   assert.match(savedPdf.text,/Little Lamb/)
   const box = await green.first().boundingBox()
@@ -226,7 +229,7 @@ try {
   await restored.page.locator('input[accept=".zip"]').setInputFiles(archive)
   await restored.page.getByRole('status').filter({hasText:'Backup restored.'}).waitFor()
   assert.equal((await idbRows(restored.page,'books')).length,2)
-  assert.equal((await idbRows(restored.page,'bookmarks')).length,2)
+  assert.equal((await idbRows(restored.page,'marks')).length,2)
   assert.equal((await idbRows(restored.page,'sessions')).length,S)
   assert.equal((await idbRows(restored.page,'annotations')).length,A)
   const prog = await idbRows(restored.page,'progress')
@@ -237,6 +240,7 @@ try {
   await restored.page.locator('input[accept=".zip"]').setInputFiles(archive)
   await restored.page.waitForTimeout(200)
   assert.equal((await idbRows(restored.page,'files')).length,2)
+  assert.equal((await idbRows(restored.page,'marks')).length,2)
   assert.equal((await idbRows(restored.page,'sessions')).length,S)
   assert.equal((await idbRows(restored.page,'annotations')).length,A)
   assert.equal((await idbRows(restored.page,'progress')).length,prog.length)
@@ -269,7 +273,15 @@ try {
   await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+75,y:point.y+45}]})
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
   assert.equal(await touch.page.locator('canvas').count(),1)
-  await touch.page.getByRole('button',{name:'Reset view'}).click()
+  // Tap empty shelf to put the book back, then tap it out again: a fresh pick starts square.
+  const corner0 = await touch.page.locator('canvas').first().boundingBox()
+  await touch.page.touchscreen.tap(corner0.x + 8,corner0.y + 8)
+  await touch.page.getByRole('button',{name:'Open book',exact:true}).waitFor({state:'detached'})
+  await touch.page.waitForFunction(() => window.testScene.getObjectByName('Book -1').position.z < .3)
+  point = await hit(touch.page,-1,'spine')
+  await touch.page.touchscreen.tap(point.x,point.y)
+  await touch.page.getByRole('button',{name:'Open book',exact:true}).waitFor()
+  await touch.page.waitForFunction(() => window.testScene.getObjectByName('Book -1').position.z > 1.5)
   point = await hit(touch.page,-1,'cover')
   await touch.page.touchscreen.tap(point.x,point.y)
   await touch.page.locator('iframe').first().waitFor()
@@ -286,12 +298,12 @@ try {
 
   const night = await context({colorScheme:'dark'})
   assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'dark')
-  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(17, 17, 19)')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(14, 21, 18)')
   await night.page.getByRole('button',{name:/Library tools/}).click()
   await night.page.getByLabel('Theme').selectOption('light')
   await night.page.getByRole('button',{name:'Close library tools'}).click(); await night.page.reload()
   assert.equal(await night.page.evaluate(() => document.documentElement.dataset.theme),'light')
-  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(245, 245, 243)')
+  assert.equal(await night.page.evaluate(() => getComputedStyle(document.body).backgroundColor),'rgb(238, 241, 236)')
   await night.page.getByRole('button',{name:/Library tools/}).click()
   await night.page.getByLabel('Theme').selectOption('system'); await night.page.getByRole('button',{name:'Close library tools'}).click()
   await night.ctx.close()
@@ -309,14 +321,16 @@ try {
   await gallery.page.waitForFunction(() => window.testRenderer?.info.memory.textures > 0); await gallery.page.waitForTimeout(300)
   await gallery.page.screenshot({path:join(outs,'covers-shelf.png')})
   let n = 0
-  // Newest first on the shelf, and Next spine does not wrap, so visit in shelf order.
+  // Browse with the arrow keys until the caption names the book, take it out with Enter, put it back with Escape.
+  const shelfKeys = stageOf(gallery.page)
   for (const title of ["If on a winter's night a traveler",'Notes','War and Peace']) {
-    const target = gallery.page.getByRole('button',{name:'Inspect ' + title,exact:true})
-    for (let i = 0; i < titles.length && !await target.count(); i++) await gallery.page.getByRole('button',{name:'Next spine'}).click()
-    await target.click(); await gallery.page.getByRole('button',{name:'Back to shelf'}).waitFor()
+    await shelfKeys.focus()
+    for (let i = 0; i <= titles.length && await caption(gallery.page).filter({hasText:new RegExp('^' + title + '$')}).count() === 0; i++) await shelfKeys.press('ArrowRight')
+    await shelfKeys.press('Enter'); await gallery.page.getByRole('button',{name:'Attach file',exact:true}).waitFor()   // fixtures have no file
     await gallery.page.waitForTimeout(300)
     await gallery.page.screenshot({path:join(outs,`cover-${++n}.png`)})
-    await gallery.page.getByRole('button',{name:'Back to shelf'}).click()
+    await gallery.page.keyboard.press('Escape')
+    await gallery.page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'bookshelf')
   }
   assert.equal(n,3); assert.deepEqual(errors,[])
   await gallery.ctx.close()
@@ -420,15 +434,16 @@ try {
   await seedRows(statsCtx.page,'progress',[{id:-11,fraction:0.4,words:3000,updated:now}])
   const sp = statsCtx.page, searchBox = sp.locator('input[type=search]')
   await searchBox.fill('Secret Garden')
-  await sp.getByRole('button',{name:/^Inspect /}).focus()
-  const unopened = sp.getByRole('tooltip').filter({hasText:'Secret Garden'}); await unopened.waitFor(); await sp.waitForTimeout(300)
-  assert.doesNotMatch(await unopened.innerText(),/% read/)
+  await stageOf(sp).press('ArrowRight')
+  await caption(sp).filter({hasText:'Secret Garden'}).waitFor(); await sp.waitForTimeout(300)
+  assert.equal(await sp.getByText(/% read/).count(),0)
   await searchBox.fill('Blake')
-  await sp.getByRole('button',{name:/^Inspect /}).focus()
-  await sp.getByRole('tooltip').filter({hasText:/\d+% read/}).waitFor()
+  await stageOf(sp).press('ArrowRight')
+  await sp.getByText(/\d+% read · /).waitFor()
   await sp.keyboard.press('Enter')
+  await sp.getByRole('button',{name:'Open book',exact:true}).waitFor()
   await sp.getByText(/% read · \d+ min/).waitFor()
-  await sp.getByRole('button',{name:'Back to shelf'}).click()
+  await sp.keyboard.press('Escape')
   await statsCtx.page.getByRole('button',{name:'Reading stats'}).click()
   await statsCtx.page.getByRole('heading',{name:'Reading stats'}).waitFor()
   assert.equal(await statsCtx.page.evaluate(() => !!document.activeElement?.closest('section')?.querySelector('h1')),true)
@@ -443,23 +458,58 @@ try {
   await statsCtx.ctx.close()
   console.log('PASS stats view')
 
+  // Bookmarks as in major readers: a one-tap ribbon per page, many per book, a list to jump to or delete them.
+  const marksCtx = await context({reducedMotion:'reduce'}), mp = marksCtx.page
+  await mp.getByText('Explore sample shelf').click()
+  await mp.locator('input[type=search]').fill('Blake'); await inspect(mp); await open(mp)
+  await mp.getByText('Piping down the valleys wild,',{exact:true}).waitFor()
+  const ribbon = mp.getByRole('button',{name:'Bookmark page'})
+  const pressedIs = v => mp.waitForFunction(v => document.querySelector('[aria-label="Bookmark page"]')?.getAttribute('aria-pressed') === v,v)
+  await pressedIs('false'); await ribbon.click()
+  await mp.getByRole('status').filter({hasText:'Page bookmarked.'}).waitFor(); await pressedIs('true')
+  assert.equal(await mp.locator('[class*=ribbon]').count(),1)
+  await mp.getByRole('button',{name:'Next page'}).click(); await mp.getByText('The Lamb',{exact:true}).waitFor()
+  await pressedIs('false'); assert.equal(await mp.locator('[class*=ribbon]').count(),0)
+  await ribbon.click(); await waitForRows(mp,'marks','rows.length === 2')
+  const marked = await idbRows(mp,'marks')
+  assert.deepEqual(marked.map(m => m.where).sort(),['Page 1','Page 2']); assert(marked.every(m => m.book === -11 && m.excerpt && m.created > 0))
+  await mp.getByRole('button',{name:'Reading options'}).click(); await mp.getByRole('button',{name:'Bookmarks 2'}).click()
+  const notesPanel = mp.getByRole('complementary',{name:'Notes & highlights'})
+  assert.equal(await notesPanel.getByRole('button',{name:'Bookmarks 2'}).getAttribute('aria-pressed'),'true')
+  await notesPanel.locator('li').first().getByRole('button').first().click()   // the excerpt jumps to its page
+  await mp.getByText('Piping down the valleys wild,',{exact:true}).waitFor(); await pressedIs('true')
+  await notesPanel.getByRole('button',{name:'Delete bookmark, Page 1'}).click()
+  await waitForRows(mp,'marks','rows.length === 1 && rows[0].where === "Page 2"'); await pressedIs('false')
+  await mp.getByRole('button',{name:'Next page'}).click(); await pressedIs('true')
+  await ribbon.click(); await mp.getByRole('status').filter({hasText:'Bookmark removed.'}).waitFor()
+  await waitForRows(mp,'marks','rows.length === 0')
+  await marksCtx.ctx.close()
+  console.log('PASS bookmarks: page toggle and ribbon, many per book, list jump and delete')
+
   const motion = await context()
   await motion.page.getByText('Explore sample shelf').click()
   await motion.page.mouse.move(0,0)
-  const spineX = () => motion.page.evaluate(() => window.testScene.getObjectByName('Book -1').position.x)
   await motion.page.waitForFunction(()=>!!window.testScene?.getObjectByName('Book -1'))
-  const initialX = await spineX()
-  await motion.page.waitForTimeout(650)
-  assert((await spineX()) < initialX)
+  // The shelf spins on its own (no pause button), and holds still under the pointer.
+  const spineX = () => motion.page.evaluate(() => window.testScene.getObjectByName('Book -1').position.x)
+  const initialX = await spineX(); await motion.page.waitForTimeout(1000)
+  const spun = initialX - await spineX()
+  assert(spun > .15 && spun < .6,'auto spin ' + spun)
+  assert.equal(await motion.page.getByRole('button',{name:/pause|play/i}).count(),0)
   const z = id => motion.page.evaluate(id => window.testScene.getObjectByName('Book ' + id).position.z,id)
-  const openCount = () => motion.page.getByRole('button',{name:'Open book'}).count()
   const click = async id => { const p = await hit(motion.page,id,'spine'); await motion.page.mouse.click(p.x,p.y) }
   const hitPoint = await hit(motion.page,-2,'spine')
   await motion.page.mouse.move(hitPoint.x,hitPoint.y)
-  await motion.page.getByRole('tooltip').filter({hasText:'Alice'}).waitFor()
-  assert.equal(await openCount(),0)
+  // Hover shows the full title under the shelf, author on the next line, and never pulls the book out.
+  await caption(motion.page).filter({hasText:'Alice'}).waitFor()
+  await motion.page.locator('section p',{hasText:'Lewis Carroll'}).waitFor()
   await motion.page.waitForTimeout(500)
-  assert.equal(await z(-2),0)
+  assert(await z(-2) < .01)
+  // The caption stays while the pointer travels down to its actions.
+  const openLink = await motion.page.getByRole('button',{name:'Open book',exact:true}).boundingBox()
+  await motion.page.mouse.move(hitPoint.x,openLink.y + openLink.height / 2,{steps:8})
+  await motion.page.mouse.move(openLink.x + openLink.width / 2,openLink.y + openLink.height / 2,{steps:8})
+  await caption(motion.page).filter({hasText:'Alice'}).waitFor()
   await click(-2)
   await motion.page.getByRole('button',{name:'Open book'}).waitFor()
   // Let the book finish sliding out so it is not in front of the next spine.
@@ -471,43 +521,32 @@ try {
   const settled = (pred,arg) => motion.page.waitForFunction(pred,arg,{timeout:15000})
   // -3 must also finish sliding to centre, or it still covers the -4 spine clicked next.
   await settled(() => { const [a,b] = ['Book -2','Book -3'].map(n => window.testScene.getObjectByName(n).position); return a.z < .01 && b.z > 1.5 && Math.abs(b.x) < .001 })
-  assert.equal(await motion.page.locator('h2').filter({hasText:'Pride and Prejudice'}).count(),1)
+  assert.equal(await caption(motion.page).filter({hasText:'Pride and Prejudice'}).count(),1)
   const [p4,p5] = [await hit(motion.page,-4,'spine'),await hit(motion.page,-5,'spine')]
   await motion.page.mouse.click(p4.x,p4.y); await motion.page.mouse.click(p5.x,p5.y)
-  await settled(() => [-1,-2,-3,-4,-5].map(id => window.testScene.getObjectByName('Book ' + id).position.z > 1.5 ? 'out' : window.testScene.getObjectByName('Book ' + id).position.z < .01 ? 'in' : '').join() === 'in,in,in,in,out')
+  await settled(() => [-1,-2,-3,-4,-5].map(id => window.testScene.getObjectByName('Book ' + id).position.z > 1.5 ? 'out' : window.testScene.getObjectByName('Book ' + id).position.z < .3 ? 'in' : '').join() === 'in,in,in,in,out')
   // Escape during a pending swap cancels it: no book comes out.
-  await motion.page.getByRole('button',{name:'Next spine'}).click()
-  await motion.page.getByRole('button',{name:/^Inspect /}).focus()
-  await motion.page.keyboard.press('Enter'); await motion.page.keyboard.press('Escape')
-  const outCount = () => window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.z > .05).length
+  await click(-3); await motion.page.keyboard.press('Escape')
+  const outCount = () => window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.z > .3).length
   await settled(`(${outCount})() === 0`)
   await motion.page.waitForTimeout(1000)   // longer than the swap delay, so a cancelled swap would have fired
   assert.equal(await motion.page.evaluate(outCount),0)
-  assert.equal(await openCount(),0)
-  const corner = await motion.page.locator('canvas').boundingBox()
-  await motion.page.mouse.click(corner.x + 10,corner.y + 10)
-  await motion.page.getByRole('button',{name:'Open book'}).waitFor({state:'detached'})
-  await motion.page.mouse.move(0,0)
-  // Track the book nearest the centre: the shelf loops, so Book -1 may have wrapped out of view.
-  const centred = await motion.page.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).reduce((a,b) => Math.abs(a.position.x) < Math.abs(b.position.x) ? a : b).name)
-  const bookX = () => motion.page.evaluate(n => window.testScene.getObjectByName(n).position.x,centred)
-  const beforeX = await bookX(); await motion.page.waitForTimeout(2000)
-  const travelled = beforeX - await bookX()
-  assert(travelled > .42 && travelled < .78,'auto speed '+travelled)
-  // With the first book centred, the last one sits right beside it on the left.
-  for (let i = 0; i < 18; i++) await motion.page.getByRole('button',{name:'Previous spine'}).click()
-  await motion.page.waitForFunction(() => Math.abs(window.testScene.getObjectByName('Book -1')?.position.x) < 1.5)
+  // With the first book centred (Home), the last one sits right beside it on the left.
+  await stageOf(motion.page).press('Home')
+  await settled(() => Math.abs(window.testScene.getObjectByName('Book -1')?.position.x) < .05)
   const gap = await motion.page.evaluate(() => {
     const first = window.testScene.getObjectByName('Book -1')
     return Math.min(...window.testScene.children.filter(o => o.name.startsWith('Book ') && o.position.x < first.position.x).map(o => first.position.x - o.position.x))
   })
   assert(gap < 1,'loop gap '+gap)
+  // Arrow keys browse (the book lifts, it does not leave), Enter takes it out, then the keys turn it.
   await motion.page.mouse.move(0,0)
-  await motion.page.getByRole('button',{name:/^Inspect /}).focus()
-  await motion.page.keyboard.press('ArrowRight')
-  await motion.page.getByRole('tooltip').waitFor()
-  assert.equal(await openCount(),0)
+  const resting = await motion.page.evaluate(() => window.testScene.getObjectByName('Book -2').position.y)
+  await stageOf(motion.page).press('ArrowRight')
+  await caption(motion.page).filter({hasText:'Alice'}).waitFor()
+  await settled(y => { const p = window.testScene.getObjectByName('Book -2').position; return p.z < .3 && p.y > y + .05 },resting)
   await motion.page.keyboard.press('Enter')
+  await motion.page.waitForFunction(() => document.activeElement?.textContent === 'Open book')
   // Software WebGL can take well over 100 ms for a frame, so wait for each key's rotation to reach the scene.
   const twist = () => motion.page.evaluate(() => window.testScene.getObjectByName('cover').parent.parent.quaternion.toArray())
   const rotate = async key => {
@@ -524,7 +563,114 @@ try {
   // Temporary test profiles count as incognito in branded Chrome; that is not an app defect.
   assert.deepEqual(install.installabilityErrors.filter(e => e.errorId !== 'in-incognito'),[])
   await motion.ctx.close()
-  console.log('PASS automatic movement, hover label, click to inspect, sequenced swap, auto speed, looping shelf, keyboard rotations, Chrome installation criteria')
+  console.log('PASS auto-spin without a pause button, hover caption, click to inspect, sequenced swap, looping shelf, keyboard browsing and rotations, Chrome installation criteria')
+
+  const shelfCtx = await context(), sh = shelfCtx.page
+  const longTitle = 'The Remarkably Long and Winding Story of a Title That Keeps Going Well Past the Edge of Any Reasonable Shelf'
+  await seedRows(sh,'books',Array.from({length:30},(_,i) => ({id:i+1,title:i === 0 || i === 29 ? longTitle + ' ' + (i + 1) : 'Volume ' + (i + 1),
+    author:'Author ' + (i + 1),color:'#475c47',added:i + 1})))
+  await sh.reload(); await sh.getByText('30 volumes',{exact:true}).waitFor()
+  // Create and fill a shelf; membership survives a reload.
+  await sh.getByRole('button',{name:'New shelf'}).click()
+  await sh.getByLabel('Shelf name').fill('Tech'); await sh.keyboard.press('Enter')
+  const editor = sh.getByRole('dialog',{name:'Edit Tech'}); await editor.waitFor()
+  for (const t of ['Volume 2','Volume 3','Volume 4']) await editor.getByRole('checkbox',{name:new RegExp('^' + t + ' ')}).check()
+  await editor.getByRole('button',{name:'Done'}).click()
+  await sh.getByText('3 volumes',{exact:true}).waitFor()
+  assert.equal(await sh.getByRole('button',{name:'Tech',exact:true}).getAttribute('aria-current'),'page')
+  await sh.reload(); await sh.getByRole('button',{name:'Tech',exact:true}).click(); await sh.getByText('3 volumes',{exact:true}).waitFor()
+  assert.deepEqual((await idbRows(sh,'shelves')).map(s => [s.name,s.books.sort((a,b) => a - b)]),[['Tech',[2,3,4]]])
+  // Switching shelves: books not on the new shelf tip off and fall away, books on both slide together, newcomers drop in.
+  // Each shelf keeps its browsing position. The pointer stays over the shelf (switching by script), which holds the auto-spin.
+  await sh.getByRole('button',{name:'All books',exact:true}).click(); await sh.getByText('30 volumes',{exact:true}).waitFor()
+  await sh.waitForFunction(() => window.testScene?.children.filter(o => o.name.startsWith('Book ')).length > 10)
+  const shelfBox = await sh.locator('canvas').first().boundingBox()
+  await sh.mouse.move(shelfBox.x + shelfBox.width / 2,shelfBox.y + 20); await sh.mouse.wheel(700,0); await sh.waitForTimeout(500)
+  const placed = () => sh.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).map(o => o.name + ':' + o.position.x.toFixed(2)).sort().join())
+  const browsed = await placed()
+  const switchTo = name => sh.evaluate(name => [...document.querySelectorAll('nav[aria-label=Shelves] button')].find(b => b.textContent === name).click(),name)
+  const leaver = await sh.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).map(o => +o.name.slice(5)).find(id => ![2,3,4].includes(id)))
+  const startY = await sh.evaluate(n => window.testScene.getObjectByName('Book ' + n).position.y,leaver)
+  await switchTo('Tech')
+  await sh.waitForFunction(([n,y]) => { const o = window.testScene.getObjectByName('Book ' + n); return o && o.position.y < y - .5 && o.rotation.x > .3 },[leaver,startY],{timeout:15000})
+  await sh.waitForFunction(n => !window.testScene.getObjectByName('Book ' + n),leaver,{timeout:15000})   // gone once it has fallen
+  await sh.getByText('3 volumes',{exact:true}).waitFor(); await sh.waitForTimeout(300)
+  await switchTo('All books'); await sh.waitForTimeout(1800)   // newcomers land, the slid books settle
+  assert.equal(await placed(),browsed)
+  // Reduced motion switches instantly: the leaving books are gone at once.
+  await sh.emulateMedia({reducedMotion:'reduce'}); await sh.waitForTimeout(150)
+  await switchTo('Tech')
+  await sh.waitForFunction(n => !window.testScene.getObjectByName('Book ' + n),leaver,{timeout:3000})
+  await sh.getByRole('button',{name:'All books',exact:true}).click(); await sh.getByText('30 volumes',{exact:true}).waitFor()
+  // Keyboard only: Tab from search reaches the shelf, arrows browse, Enter takes a book out, Escape puts it back, Tab reaches rename.
+  const activeLabel = () => sh.evaluate(() => document.activeElement?.getAttribute('aria-label'))
+  await sh.locator('input[type=search]').focus(); await sh.keyboard.press('Tab'); await sh.keyboard.press('Tab')
+  assert.equal(await activeLabel(),'All books, 30 books')
+  await sh.keyboard.press('Home'); await caption(sh).filter({hasText:longTitle + ' 30'}).waitFor()
+  await sh.keyboard.press('ArrowRight'); await caption(sh).filter({hasText:/^Volume 29$/}).waitFor()
+  await sh.keyboard.press('Enter')
+  await sh.waitForFunction(() => document.activeElement?.textContent === 'Attach file')   // seeded books have no file yet
+  await sh.keyboard.press('Escape')
+  await sh.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'bookshelf')
+  await sh.keyboard.press('Tab')
+  const renameLabel = await activeLabel()
+  assert.match(renameLabel,/^Rename /)
+  // Rename inline: Escape cancels, Save persists across caption, search and reload; the original filename is untouched.
+  await sh.keyboard.press('Enter')
+  const titleInput = sh.getByLabel('Book title'); await titleInput.waitFor()
+  assert.equal(await titleInput.inputValue(),renameLabel.slice(7))
+  await sh.keyboard.press('Escape'); await titleInput.waitFor({state:'detached'})
+  assert.equal(await activeLabel(),renameLabel)
+  await sh.keyboard.press('Enter'); await titleInput.fill('A Better Title')
+  await sh.getByRole('button',{name:'Cancel'}).waitFor(); await sh.keyboard.press('Enter')
+  await caption(sh).filter({hasText:'A Better Title'}).waitFor()
+  await waitForRows(sh,'books','rows.some(b => b.title === "A Better Title")')
+  await sh.reload(); await sh.locator('input[type=search]').fill('better'); await sh.getByText('1 volume',{exact:true}).waitFor()
+  await sh.locator('input[type=search]').fill('')
+  // Long titles at both ends of a shelf wrap in full under it, on desktop and phone widths.
+  await sh.getByRole('button',{name:'Tech',exact:true}).click(); await sh.getByRole('button',{name:'Edit shelf'}).click()
+  await editor.getByLabel('Filter books').fill('remarkably')
+  for (const box of await editor.getByRole('checkbox').all()) await box.check()
+  await editor.getByRole('button',{name:'Done'}).click(); await sh.getByText('5 volumes',{exact:true}).waitFor()
+  await sh.waitForFunction(() => !!window.testScene?.getObjectByName('Book 30') && !!window.testScene.getObjectByName('Book 1'))
+  const noOverflow = () => sh.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+  for (const id of [30,1]) {
+    const p = await hit(sh,id,'spine'); await sh.mouse.move(p.x,p.y)
+    await caption(sh).filter({hasText:longTitle + ' ' + id}).waitFor()
+    const box = await caption(sh).boundingBox(), width = sh.viewportSize().width
+    assert(box.x >= 0 && box.x + box.width <= width && box.height > 60,'caption box ' + JSON.stringify(box)); assert(await noOverflow())
+  }
+  await sh.screenshot({path:join(outs,'long-title-desktop.png')})
+  await sh.setViewportSize({width:390,height:844})
+  for (const [keyName,id] of [['Home',30],['End',1]]) {
+    await stageOf(sh).press(keyName)
+    await caption(sh).filter({hasText:longTitle + ' ' + id}).waitFor()
+    const box = await caption(sh).boundingBox()
+    assert(box.x >= 0 && box.x + box.width <= 390,'phone caption ' + JSON.stringify(box)); assert(await noOverflow())
+  }
+  await sh.screenshot({path:join(outs,'long-title-phone.png')})
+  await sh.setViewportSize({width:1280,height:800})
+  // Importing on a shelf adds the book to it; a PDFDrive tail is offered for removal and the filename is kept.
+  const bare = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 300]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n')
+  await importBooks(sh,[{name:'Atomic Habits ( PDFDrive.com ).pdf',mimeType:'application/pdf',buffer:bare}])
+  await sh.getByRole('button',{name:'Rename to “Atomic Habits”'}).click()
+  await waitForRows(sh,'books','rows.some(b => b.title === "Atomic Habits" && b.filename === "Atomic Habits ( PDFDrive.com ).pdf")')
+  await sh.getByText('6 volumes',{exact:true}).waitFor()
+  // Shelves travel in backups, remapped to the restored book ids, and restoring twice adds no duplicates.
+  await sh.getByRole('button',{name:/Library tools/}).click()
+  const shelfDownload = sh.waitForEvent('download')
+  await sh.getByText('Export backup',{exact:true}).click()
+  const shelfArchive = join(outs,'shelves.zip'); await (await shelfDownload).saveAs(shelfArchive)
+  const fresh = await context()
+  for (let i = 0; i < 2; i++) {
+    await fresh.page.locator('input[accept=".zip"]').setInputFiles(shelfArchive)
+    await fresh.page.getByRole('status').filter({hasText:'Backup restored.'}).waitFor(); await fresh.page.waitForTimeout(200)
+  }
+  const restoredShelves = await idbRows(fresh.page,'shelves'), restoredBookIds = new Set((await idbRows(fresh.page,'books')).map(b => b.id))
+  assert.deepEqual(restoredShelves.map(s => [s.name,s.books.length]),[['Tech',6]])
+  assert(restoredShelves[0].books.every(id => restoredBookIds.has(id)))
+  await fresh.ctx.close(); await shelfCtx.ctx.close()
+  console.log('PASS custom shelves, drop-and-slide switch and restored position, reduced motion, keyboard-only browsing, rename, long titles at both edges, PDFDrive suggestion, shelf backup')
   assert.deepEqual(errors,[])
   console.log('Browser checks passed. Artifacts in',outs)
 } finally { await browser.close() }

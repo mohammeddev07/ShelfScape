@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ArrowBendDownRightIcon, BookmarkSimpleIcon, CaretDownIcon, CaretLeftIcon, CaretRightIcon, DotsThreeIcon, HighlighterIcon, MagnifyingGlassIcon, MinusIcon, MoonIcon, NotePencilIcon, PlusIcon, SunIcon, TextAaIcon } from '@phosphor-icons/react'
+import { BookmarksSimpleIcon, BookmarkSimpleIcon, CaretDownIcon, CaretLeftIcon, CaretRightIcon, DotsThreeIcon, HighlighterIcon, MagnifyingGlassIcon, MinusIcon, MoonIcon, NotePencilIcon, PlusIcon, SunIcon, TextAaIcon } from '@phosphor-icons/react'
 import { liveQuery } from 'dexie'
-import { db, original, errorMessage, type Annotation, type Book, type HighlightColor, type Location, type Progress } from '../db'
+import { db, original, errorMessage, type Annotation, type Book, type Bookmark, type HighlightColor, type Location, type Progress } from '../db'
+import { sameSpot } from '../annotations/core'
 import type { ReaderAdapter, ReaderStatus } from './adapter'
 import { DaySegments, FINISHED_AT, MIN_SESSION_MS, ProgressTrail, ReadingClock } from '../stats/core'
 import Toolbar from '../annotations/Toolbar'
@@ -16,16 +17,17 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   const selectedPassage = useRef<Location | undefined>(undefined)
   const reading = useRef<ReadingClock | null>(null), jumping = useRef(false)
   const backButton = useRef<HTMLButtonElement>(null), notesButton = useRef<HTMLButtonElement>(null), pressed = useRef(0)
-  const [status,setStatus] = useState<ReaderStatus>(), [ready,setReady] = useState(false)
-  const [error,setError] = useState(''), [marks,setMarks] = useState<Location>(), [notice,setNoticeState] = useState({ text:'',n:0 })
+  const [status,setStatus] = useState<ReaderStatus>(), [ready,setReady] = useState(false), [opened,setOpened] = useState<ReaderAdapter>()
+  const [error,setError] = useState(''), [marks,setMarks] = useState<Bookmark[]>([]), [notice,setNoticeState] = useState({ text:'',n:0 })
   const [menu,setMenu] = useState(false), [page,setPage] = useState('')
   const [list,setList] = useState<Annotation[]>([]), [picked,setPicked] = useState<DOMRect>()
-  const [panel,setPanel] = useState(false), [editing,setEditing] = useState<number>()
-  const edit = (id?: number) => { if (id) { setEditing(id); setPanel(true) } }
+  const [panel,setPanel] = useState(false), [editing,setEditing] = useState<number>(), [view,setView] = useState<'highlights' | 'bookmarks'>('highlights')
+  const edit = (id?: number) => { if (id) { setEditing(id); setView('highlights'); setPanel(true) } }
   const closePanel = () => { setPanel(false); notesButton.current?.focus() }
   useEffect(() => {
     const sub = liveQuery(() => db.annotations.where({ book:book.id }).toArray()).subscribe({ next:setList,error:e => setError(errorMessage(e)) })
-    return () => sub.unsubscribe()
+    const markSub = liveQuery(() => db.marks.where('book').equals(book.id).toArray()).subscribe({ next:setMarks,error:e => setError(errorMessage(e)) })
+    return () => { sub.unsubscribe(); markSub.unsubscribe() }
   },[book])
   useEffect(() => {
     backButton.current?.focus()
@@ -60,8 +62,8 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     const hide = () => { if (document.hidden) { clock.pause(Date.now()); flush() } else clock.touch(Date.now()) }
     document.addEventListener('visibilitychange',hide); window.addEventListener('pagehide',flush)
     async function start() {
-      const [file,saved,bookmark,known] = await Promise.all([original(book),db.positions.get(book.id),db.bookmarks.get(book.id),db.progress.get(book.id)])
-      controller.signal.throwIfAborted(); setMarks(bookmark?.location)
+      const [file,saved,known] = await Promise.all([original(book),db.positions.get(book.id),db.progress.get(book.id)])
+      controller.signal.throwIfAborted()
       const open = book.format === 'epub' ? (await import('./epub')).openEpub : (await import('./pdf')).openPdf
       controller.signal.throwIfAborted()
       const reader = await open({ file,element:host.current!,saved:saved?.location,locations:known?.locations,signal:controller.signal,error:fail,
@@ -72,7 +74,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
           else if (Date.now() - pressed.current > 1000) selectedPassage.current = undefined
           setPicked(active ? adapter.current?.selectionRect() : undefined)
         },
-        activate(key) { if (key !== 'bookmark') edit(Number(key)) },
+        activate(key) { if (!key.startsWith('bookmark')) edit(Number(key)) },
         change(location,state) {
           if (controller.signal.aborted) return
           pending = location; fraction = state.progress; end = state.last
@@ -92,7 +94,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
           window.clearTimeout(timer); timer = window.setTimeout(flush,250)
         },
       })
-      controller.signal.throwIfAborted(); adapter.current = reader; setReady(true)
+      controller.signal.throwIfAborted(); adapter.current = reader; setOpened(reader); setReady(true)
       // Best effort: a book that reads fine but cannot be measured shows no error, and words stay unset so a later open retries.
       if (known?.words === undefined) reader.measure(controller.signal)
         .then(measured => { controller.signal.throwIfAborted(); return progress(() => measured) }).catch(() => {})
@@ -127,7 +129,7 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   useEffect(() => { if (ready) adapter.current?.theme(night) },[ready,night])
   useEffect(() => {
     if (ready) adapter.current?.paint([...list.map(a => ({ key:String(a.id),location:a.location,style:a.color })),
-      ...marks?.text ? [{ key:'bookmark',location:marks,style:'bookmark' as const }] : []])
+      ...marks.filter(m => m.location.text).map(m => ({ key:'bookmark:' + m.id,location:m.location,style:'bookmark' as const }))])
   },[ready,list,marks])
   const highlight = async (color: HighlightColor) => {
     const location = [adapter.current?.location(true),selectedPassage.current].find(l => l?.text)
@@ -138,14 +140,28 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     selectedPassage.current = undefined; setPicked(undefined)
     return id
   }
+  // Page bookmarks (no passage) on the page now shown; status is in the deps of every render that moves the page.
+  const onPage = opened && status ? marks.filter(m => !m.location.text && opened.visible(m.location)) : []
+  const save = async (location: Location) => {
+    if (!status || marks.some(m => sameSpot(m.location,location))) return false
+    await db.marks.add({ book:book.id,location,where:status.where,order:status.progress,created:Date.now(),
+      excerpt:location.text?.replace(/\s+/g,' ').trim().slice(0,160) || adapter.current?.excerpt() || '' })
+    return true
+  }
+  // The header ribbon: one tap marks the page, a second tap removes it, as in most reading apps.
+  const togglePage = async () => {
+    const location = adapter.current?.location()
+    if (onPage.length) { await db.marks.bulkDelete(onPage.map(m => m.id!)); setNotice('Bookmark removed.') }
+    else if (location) { await save({ ...location,text:undefined }); setNotice('Page bookmarked.') }
+  }
   const bookmark = async () => {
     const now = adapter.current?.location(true)
     const location = now?.text ? now : selectedPassage.current ?? now
-    if (location) {
-      await db.bookmarks.put({ id:book.id,location }); setMarks(location)
-      setNotice(location.text ? 'Passage bookmarked.' : 'Reading position bookmarked.')
-    }
+    if (!location) return
+    const added = await save(location)
+    setNotice(!added ? 'Already bookmarked.' : location.text ? 'Passage bookmarked.' : 'Reading position bookmarked.')
   }
+  const openPanel = (next: 'highlights' | 'bookmarks') => { setEditing(undefined); setView(next); setPanel(true) }
   return <main className={styles.reader} onPointerDownCapture={e => {
     if ((e.target as Element).closest('[role=toolbar],.' + styles.readerMenu)) pressed.current = Date.now()
   }} onPointerDown={touch} onWheel={touch} onKeyDown={e => {
@@ -157,12 +173,14 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
   }}>
     <header className={styles.readerHeader}>
       <button ref={backButton} className={styles.ghost} onClick={back}><CaretLeftIcon size={18} aria-hidden="true"/>Library</button><h1>{book.title}</h1>
-      <div><button ref={notesButton} className={styles.icon} aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}><NotePencilIcon size={20} aria-hidden="true"/></button>
+      <div><button className={styles.icon} aria-label="Bookmark page" aria-pressed={onPage.length > 0} disabled={!ready} onClick={() => run(togglePage())}>
+        <BookmarkSimpleIcon size={20} weight={onPage.length ? 'fill' : 'regular'} aria-hidden="true"/></button>
+      <button ref={notesButton} className={styles.icon} aria-label="Notes & highlights" aria-expanded={panel} onClick={() => { setEditing(undefined); setPanel(!panel) }}><NotePencilIcon size={20} aria-hidden="true"/></button>
       <button className={styles.icon} onPointerDown={() => { selectedPassage.current = adapter.current?.location(true) }} aria-label="Reading options" aria-expanded={menu} onClick={() => setMenu(!menu)}><DotsThreeIcon size={20} weight="bold" aria-hidden="true"/></button></div></header>
     {menu && <aside className={styles.readerMenu}>
       <button className={styles.ghost} disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => run(bookmark())}><BookmarkSimpleIcon size={18} aria-hidden="true"/>Bookmark this passage</button>
       <button className={styles.ghost} disabled={!ready} onPointerDown={e => e.preventDefault()} onClick={() => { run(highlight('yellow')); setMenu(false) }}><HighlighterIcon size={18} aria-hidden="true"/>Highlight selection</button>
-      <button className={styles.ghost} disabled={!marks || !ready} onClick={() => { if (marks) jump(marks); setMenu(false) }}><ArrowBendDownRightIcon size={18} aria-hidden="true"/>Go to bookmark</button>
+      <button className={styles.ghost} onClick={() => { openPanel('bookmarks'); setMenu(false) }}><BookmarksSimpleIcon size={18} aria-hidden="true"/>Bookmarks{marks.length > 0 && <> <span className={styles.count}>{marks.length}</span></>}</button>
       {status && status.contents.length > 0 && <label>Contents<span className={styles.select}><select defaultValue="" onChange={e => { jump(e.target.value); setMenu(false) }}>
         <option value="" disabled>Choose a chapter</option>{status.contents.map((c,i) => <option key={i} value={c.target}>{c.title}</option>)}</select><CaretDownIcon size={14} aria-hidden="true"/></span></label>}
       {book.format === 'pdf' && <form onSubmit={e => { e.preventDefault(); jump(page); setMenu(false) }}>
@@ -170,11 +188,12 @@ export default function Reader({ book,back }: { book:Book; back:() => void }) {
     </aside>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {!ready && !error && <p className={styles.readerLoading}>Opening your book…</p>}
+    {onPage.length > 0 && <span className={styles.ribbon} aria-hidden="true"/>}
     <div ref={host} className={styles.document} tabIndex={0} aria-label={book.title + ' reading area'}
       onScroll={() => { if (picked) setPicked(adapter.current?.selectionRect()) }}/>
     {picked && <Toolbar rect={picked} touch={matchMedia('(pointer: coarse)').matches} onColor={c => run(highlight(c))} onNote={() => run(highlight('yellow').then(edit))}/>}
-    {panel && <NotesPanel book={book} list={list} editing={editing} onClose={closePanel}
-      onJump={a => jump({ ...a.location,text:undefined })}/>}
+    {panel && <NotesPanel book={book} list={list} marks={marks} view={view} onView={setView} editing={editing} onClose={closePanel}
+      onJump={a => jump({ ...a.location,text:undefined })} onJumpMark={m => jump(m.location)}/>}
     <p role="status" className={styles.readerNotice}>{notice.text && <span key={notice.n}>{notice.text}</span>}</p>
     <footer className={styles.readerFooter} style={{ '--read':status ? percent(status.progress) : '0%' } as CSSProperties}>
       <div><div className={styles.group}>

@@ -139,6 +139,17 @@ export async function openEpub(input: ReaderInput): Promise<ReaderAdapter> {
         painted = next
       },
       theme: mode => rendition.themes.select(mode === 'dark' ? 'night' : 'default'),
+      visible(at) {
+        if (at.format !== 'epub' || !current?.start?.cfi || !current.end?.cfi) return false
+        try { return cfi.compare(at.cfi,current.start.cfi) >= 0 && cfi.compare(at.cfi,current.end.cfi) <= 0 } catch { return false }
+      },
+      excerpt() {
+        try {
+          const from = rendition.getRange(current!.start.cfi), to = rendition.getRange(current!.end.cfi), range = from.cloneRange()
+          range.setEnd(to.endContainer,to.endOffset)
+          return range.toString().replace(/\s+/g,' ').trim().slice(0,160)
+        } catch { return '' }
+      },
       selectionRect() {
         const picked = selection(), frame = picked?.content.window.frameElement?.getBoundingClientRect()
         if (!picked || !frame) return

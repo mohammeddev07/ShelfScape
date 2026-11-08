@@ -1,4 +1,4 @@
-import { CanvasTexture, SRGBColorSpace, RepeatWrapping } from 'three'
+import { CanvasTexture, SRGBColorSpace } from 'three'
 import type { Book } from '../db'
 import { contrast, design, seed, type Design } from './design'
 export { seed }
@@ -313,37 +313,11 @@ export function binding(book: Book, side: Side, image?: HTMLImageElement) {
   ctx.fillStyle = light; ctx.fillRect(0, 0, w, h)
   return texture(ctx)
 }
-export function woodTexture() {
-  const ctx = canvas(1024, 160)
-  ctx.fillStyle = '#b48a62'; ctx.fillRect(0, 0, 1024, 160)
-  for (let i = 0; i < 480; i++) {
-    const y = (i * 37) % 161
-    ctx.strokeStyle = i % 3 ? 'rgba(92,58,32,.09)' : 'rgba(250,226,190,.13)'
-    ctx.lineWidth = i % 7 === 0 ? 1.1 : 0.5
-    ctx.beginPath()
-    for (let x = 0; x <= 1024; x += 8) {
-      const v = y + Math.sin(x * Math.PI * 2 / 1024 + i * 0.022) * (3 + i % 9) + Math.sin(x * Math.PI / 128 + i) * 0.7
-      if (!x) ctx.moveTo(x, v); else ctx.lineTo(x, v)
-    }
-    ctx.stroke()
-  }
-  const map = texture(ctx); map.wrapS = RepeatWrapping; map.repeat.x = 4
-  return map
-}
 export function pageTexture() {
   const ctx = canvas(64, 256)
   ctx.fillStyle = '#e3d0a9'; ctx.fillRect(0, 0, 64, 256)
   for (let x = 0; x < 64; x += 2) {
     ctx.fillStyle = 'rgba(100,70,40,' + (0.06 + x % 7 / 48) + ')'; ctx.fillRect(x, 0, 1, 256)
   }
-  return texture(ctx)
-}
-
-export function shadowTexture() {
-  const ctx = canvas(128,64)
-  ctx.scale(1,.5)
-  const shadow = ctx.createRadialGradient(64,64,1,64,64,62)
-  shadow.addColorStop(0,'rgba(48,30,15,.42)'); shadow.addColorStop(.5,'rgba(48,30,15,.14)'); shadow.addColorStop(1,'rgba(48,30,15,0)')
-  ctx.fillStyle = shadow; ctx.fillRect(0,0,128,128)
   return texture(ctx)
 }

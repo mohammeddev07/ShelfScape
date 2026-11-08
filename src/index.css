@@ -1,6 +1,12 @@
 @font-face{font-family:Geist;src:url(/fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
-:root{color-scheme:light;--paper:#f5f5f3;--surface:#fcfcfb;--field:#ececea;--ink:#18181b;--muted:#63636b;--line:#e2e2df;--rust:#c2410c;--rust-deep:#9a3412;--on-rust:#fffaf6;--glow:#f5f5f3;--edge:#d4d4d0;--veil:rgb(245 245 243 / .92);--shadow:0 1px 2px rgb(24 24 27 / .04),0 12px 32px -8px rgb(24 24 27 / .14);--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--book:"Iowan Old Style",Charter,"Palatino Linotype",Georgia,serif;--serif:var(--book);font:16px/1.5 var(--sans);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-:root[data-theme=dark]{color-scheme:dark;--paper:#111113;--surface:#1a1a1d;--field:#222226;--ink:#ececee;--muted:#9d9da6;--line:#2b2b30;--rust:#f0845c;--rust-deep:#f59e7a;--on-rust:#111113;--glow:#111113;--edge:#3a3a40;--veil:rgb(17 17 19 / .92);--shadow:0 1px 2px rgb(6 6 8 / .3),0 16px 40px -8px rgb(6 6 8 / .6)}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-400-latin.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-400-latin-ext.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-400-cyrillic.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-500-latin.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-500-latin-ext.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:Spectral;src:url(/fonts/Spectral-500-cyrillic.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+:root{color-scheme:light;--paper:#eef1ec;--surface:#f7f9f6;--field:#e3e8e2;--ink:#15201b;--muted:#56635c;--line:#d9e0d9;--rust:#8f5a10;--rust-deep:#74480b;--on-rust:#fffaf0;--glow:#f8faf6;--edge:#c5cfc6;--veil:rgb(238 241 236 / .92);--lamp:rgb(214 150 52 / .13);--tint:rgb(143 90 16 / .1);--shadow:0 1px 2px rgb(21 32 27 / .05),0 12px 32px -10px rgb(21 32 27 / .16);--sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--display:Spectral,"Iowan Old Style",Charter,Georgia,serif;--book:"Iowan Old Style",Charter,"Palatino Linotype",Georgia,serif;--serif:var(--book);font:16px/1.5 var(--sans);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+:root[data-theme=dark]{color-scheme:dark;--paper:#0e1512;--surface:#151e1a;--field:#1a2520;--ink:#ece6d8;--muted:#9aa79f;--line:#24302a;--rust:#e3a94f;--rust-deep:#f0c27a;--on-rust:#14100a;--glow:#16261e;--edge:#34423b;--veil:rgb(14 21 18 / .92);--lamp:rgb(227 169 79 / .2);--tint:rgb(227 169 79 / .12);--shadow:0 1px 2px rgb(0 0 0 / .3),0 16px 40px -10px rgb(0 0 0 / .55)}
 *{box-sizing:border-box}
 body{margin:0;min-width:280px;background:var(--paper);color:var(--ink)}
 button,input,select{font:inherit}
@@ -12,6 +18,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,[t
 button:hover:not(:disabled),a{color:var(--rust)}
 button,input,select{min-height:40px}
 h1,h2,h3,p{margin:0}
+h1,h2{font-family:var(--display);font-weight:500;letter-spacing:-.01em}
 [hidden]{display:none!important}
 @media(max-width:640px),(pointer:coarse){button,input,select{min-height:44px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}button:active:not(:disabled){transform:none}}

@@ -151,6 +151,13 @@ export async function openPdf(input: ReaderInput): Promise<ReaderAdapter> {
     paint(next) { marks = next; drawMarks() },
     selectionRect: () => selected()?.getBoundingClientRect(),
     theme() {},   // pdf.css follows the page's data-theme
+    visible: at => at.format === 'pdf' && at.page === page,
+    excerpt() {
+      // From the first line still in view, so a page bookmarked halfway down shows what was on screen.
+      const top = element.getBoundingClientRect().top, spans = [...element.querySelectorAll<HTMLElement>('.textLayer span')]
+      const from = Math.max(0,spans.findIndex(span => span.getBoundingClientRect().bottom > top))
+      return spans.slice(from).map(span => span.textContent).join(' ').replace(/\s+/g,' ').trim().slice(0,160)
+    },
     async measure(stop) {
       let words = 0
       for (let n = 1; n <= doc.numPages; n++) {
