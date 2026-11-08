@@ -118,16 +118,4 @@ export interface Hits {
 }
 /** A shelf switch: where each book on screen stood (world x) and which ones are leaving. Books that stay slide over, new ones drop in. */
 export interface Transition { since: number; from: Map<number,number>; leaving: { slot: Slot; x: number }[] }
-// ms: leavers tip off at once, the gap closes after SLIDE_DELAY, newcomers land after DROP_DELAY; everything settles by SETTLED.
-export const SLIDE_DELAY = 120, SLIDE_MS = 560, DROP_DELAY = 260, DROP_MS = 620, SETTLED = 1500
-export const easeOut = (k: number) => 1 - (1 - k) ** 3
-/** Lands, then two small bounces (Penner's easeOutBounce). */
-export function bounce(k: number) {
-  const n = 7.5625, d = 2.75
-  if (k < 1 / d) return n * k * k
-  if (k < 2 / d) return n * (k -= 1.5 / d) * k + .75
-  if (k < 2.5 / d) return n * (k -= 2.25 / d) * k + .9375
-  return n * (k -= 2.625 / d) * k + .984375
-}
-/** A stable 0..n-1 stagger slot per book, so a row does not fall or land in lockstep. */
-export const stagger = (id: number, n: number) => (Math.abs(id) * 7919) % n
+export { SETTLED } from './tween'

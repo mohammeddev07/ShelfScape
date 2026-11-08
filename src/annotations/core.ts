@@ -24,10 +24,12 @@ export function findQuote(source: string, quote: string, offset?: number): numbe
 export const sortAnnotations = <T extends Annotation | Bookmark>(list: T[]): T[] =>
   [...list].sort((a, b) => a.order - b.order || a.created - b.created)
 
-/** Same bookmarked spot: the same PDF page or EPUB position, and the same passage (or both none). */
+/** Same bookmarked spot: the same PDF page or EPUB position, and the same passage (or both none).
+ *  A PDF passage also needs the same offset, since identical text can occur twice on one page; page bookmarks ignore it. */
 export function sameSpot(a: Location, b: Location): boolean {
   const place = a.format === 'pdf' ? b.format === 'pdf' && a.page === b.page : b.format === 'epub' && a.cfi === b.cfi
-  return place && (a.text ?? '') === (b.text ?? '')
+  const offset = a.format !== 'pdf' || b.format !== 'pdf' || !a.text || a.offset === b.offset
+  return place && (a.text ?? '') === (b.text ?? '') && offset
 }
 
 export function toMarkdown(book: { title: string; author: string }, list: Annotation[], exported: number, bookmarks: Bookmark[] = []): string {

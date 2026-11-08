@@ -7,7 +7,8 @@ import { db } from '../db'
 import { useResolvedTheme } from '../theme'
 import { binding, pageTexture } from './bindings'
 
-import { arc, bounce, CAMERA, DROP_DELAY, DROP_MS, easeOut, EDGE, FLOOR, layout, SETTLED, SLIDE_DELAY, SLIDE_MS, stagger, VIEW, type Slot, type Motion, type Hits, type Transition } from './layout'
+import { arc, CAMERA, EDGE, FLOOR, layout, VIEW, type Slot, type Motion, type Hits, type Transition } from './layout'
+import { bounce, DROP_DELAY, DROP_MS, easeOut, fallPose, SETTLED, SLIDE_DELAY, SLIDE_MS, stagger } from './tween'
 const box = new BoxGeometry(1, 1, 1), plane = new PlaneGeometry(1, 1)
 const roundedSpine = new PlaneGeometry(1,1,16,1)
 const points = roundedSpine.attributes.position
@@ -57,10 +58,9 @@ function BookModel({ slot, copy, active, lit, motion, hits, reduced, pages, tran
     if (!group.current || !twist.current) return
     if (fall) {
       // Tips forward off the front lip, then drops out of view.
-      const time = Math.max(0,(performance.now() - fall.since - stagger(book.id,5) * 40) / 1000), tip = Math.min(1.4,time * 3.2), free = Math.max(0,time - .12)
-      const bow = arc(fall.x,motion.span / 2)
-      group.current.position.set(fall.x,FLOOR + h / 2 - (1 - Math.cos(tip)) * h / 2 - 8 * free * free,bow.z + Math.sin(tip) * h / 2 + free * 1.2)
-      group.current.rotation.set(tip,bow.yaw,tilt + (book.id % 2 ? 1 : -1) * time * .5)
+      const time = Math.max(0,(performance.now() - fall.since - stagger(book.id,5) * 40) / 1000), pose = fallPose(time,h), bow = arc(fall.x,motion.span / 2)
+      group.current.position.set(fall.x,FLOOR + h / 2 - pose.drop,bow.z + pose.forward)
+      group.current.rotation.set(pose.tip,bow.yaw,tilt + (book.id % 2 ? 1 : -1) * time * .5)
       if (time < 1.4) invalidate()
       return
     }
@@ -103,7 +103,7 @@ function BookModel({ slot, copy, active, lit, motion, hits, reduced, pages, tran
     e.stopPropagation()
     hits.down(e.nativeEvent, book.id, e.object.name === 'cover', active)
   }
-  return <group name={'Book ' + book.id} ref={group} onPointerOver={e => { e.stopPropagation(); if (e.pointerType === 'mouse') hits.hover(book.id) }}
+  return <group name={'Book ' + book.id} ref={group} userData={{ falling:!!fall }} onPointerOver={e => { e.stopPropagation(); if (e.pointerType === 'mouse') hits.hover(book.id) }}
     onPointerOut={() => hits.hover(undefined)} onPointerDown={down}>
     <group ref={twist}>
       <mesh geometry={box} material={pages} scale={[w * .91,h - .048,d - .043]}/>

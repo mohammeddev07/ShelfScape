@@ -589,11 +589,14 @@ try {
   const placed = () => sh.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).map(o => o.name + ':' + o.position.x.toFixed(2)).sort().join())
   const browsed = await placed()
   const switchTo = name => sh.evaluate(name => [...document.querySelectorAll('nav[aria-label=Shelves] button')].find(b => b.textContent === name).click(),name)
-  const leaver = await sh.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ')).map(o => +o.name.slice(5)).find(id => ![2,3,4].includes(id)))
-  const startY = await sh.evaluate(n => window.testScene.getObjectByName('Book ' + n).position.y,leaver)
+  // A book on screen (nearest the centre): ones rendered just past the edges are removed at once rather than animated.
+  const leaver = await sh.evaluate(() => window.testScene.children.filter(o => o.name.startsWith('Book ') && ![2,3,4].includes(+o.name.slice(5)))
+    .sort((a,b) => Math.abs(a.position.x) - Math.abs(b.position.x)).map(o => +o.name.slice(5))[0])
   await switchTo('Tech')
-  await sh.waitForFunction(([n,y]) => { const o = window.testScene.getObjectByName('Book ' + n); return o && o.position.y < y - .5 && o.rotation.x > .3 },[leaver,startY],{timeout:15000})
-  await sh.waitForFunction(n => !window.testScene.getObjectByName('Book ' + n),leaver,{timeout:15000})   // gone once it has fallen
+  // The fall's shape is unit tested (tests/unit/tween.test.ts). Here: the leaving book is handed over to the fall, never just
+  // removed, then leaves the scene. Polling for a mid-air pose is unreliable where one software WebGL frame outlasts the fall.
+  await sh.waitForFunction(n => window.testScene.getObjectByName('Book ' + n)?.userData.falling === true,leaver,{timeout:15000})
+  await sh.waitForFunction(n => !window.testScene.getObjectByName('Book ' + n),leaver,{timeout:15000})
   await sh.getByText('3 volumes',{exact:true}).waitFor(); await sh.waitForTimeout(300)
   await switchTo('All books'); await sh.waitForTimeout(1800)   // newcomers land, the slid books settle
   assert.equal(await placed(),browsed)

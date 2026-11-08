@@ -26,6 +26,10 @@ test('bookmarks: same spot matching and the export section', () => {
   const pdf = (page: number, text?: string) => ({ format: 'pdf', page, fraction: .3, text }) as any
   assert.ok(sameSpot(pdf(4), { ...pdf(4), fraction: .9 }))        // same page, scrolled elsewhere
   assert.ok(!sameSpot(pdf(4), pdf(5))); assert.ok(!sameSpot(pdf(4), pdf(4, 'Lamb')))
+  // The same words twice on one page are two passages; a page bookmark ignores offsets.
+  const at = (offset: number) => ({ ...pdf(4, 'Little Lamb'), offset })
+  assert.ok(!sameSpot(at(0), at(58))); assert.ok(sameSpot(at(58), at(58)))
+  assert.ok(sameSpot({ ...pdf(4), offset: 3 }, pdf(4)))
   assert.ok(sameSpot({ format: 'epub', cfi: 'epubcfi(/6/4!/2)' } as any, { format: 'epub', cfi: 'epubcfi(/6/4!/2)' } as any))
   assert.ok(!sameSpot(pdf(4), { format: 'epub', cfi: 'epubcfi(/6/4!/2)' } as any))
   const md = toMarkdown({ title: 'T', author: '' }, [], Date.UTC(2026, 10, 7), [
