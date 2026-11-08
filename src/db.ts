@@ -31,6 +31,10 @@ export interface Progress {
   finished?: number               // epoch ms first finished; never cleared
   updated: number
 }
+/** One of many bookmarks in a book: a page (no text) or a passage (location.text). where/order as for Annotation; created 0 = unknown (migrated). */
+export interface Bookmark { id?: number; book: number; location: Location; where: string; order: number; excerpt: string; created: number }
+/** A named custom shelf; "All books" is implicit. books holds Book ids. */
+export interface BookShelf { id: number; name: string; books: number[]; created: number }
 export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink'
 export interface Annotation {
   id?: number; book: number
@@ -48,10 +52,11 @@ class Library extends Dexie {
   files!: Table<Asset, number>
   art!: Table<Asset, number>
   positions!: Table<Mark, number>
-  bookmarks!: Table<Mark, number>
+  marks!: Table<Bookmark, number>
   sessions!: Table<Session, number>
   progress!: Table<Progress, number>
   annotations!: Table<Annotation, number>
+  shelves!: Table<BookShelf, number>
   constructor() {
     super('shelfscape')
     this.version(1).stores({ books: '++id, title' })
@@ -67,6 +72,14 @@ class Library extends Dexie {
     this.version(3).stores({
       sessions: '++id, book, start, [book+start]', progress: 'id', annotations: '++id, book, created, [book+created]',
     })
+    this.version(4).stores({ shelves: '++id, name' })
+    // One bookmark per book (keyed by book id) becomes many per book; Dexie cannot change a primary key, so copy, then drop.
+    this.version(5).stores({ marks: '++id, book' }).upgrade(async tx => {
+      for (const old of await tx.table<Mark>('bookmarks').toArray())
+        await tx.table('marks').add({ book:old.id,location:old.location,where:old.location.format === 'pdf' ? 'Page ' + old.location.page : 'Bookmark',
+          order:0,excerpt:old.location.text ?? '',created:0 })
+    })
+    this.version(6).stores({ bookmarks: null })
   }
 }
 export const db = new Library()

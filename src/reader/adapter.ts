@@ -21,4 +21,6 @@ export interface ReaderAdapter {
   paint: (marks: Paint[]) => void                  // replaces the painted set
   selectionRect: () => DOMRect | undefined         // viewport coordinates
   theme: (mode: 'light' | 'dark') => void
+  visible: (location: Location) => boolean        // that spot is on the page now shown
+  excerpt: () => string                            // opening words of the page now shown, for bookmark lists
 }

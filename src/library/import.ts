@@ -1,5 +1,6 @@
 import { db, type Format, type Book } from '../db'
 import JSZip from 'jszip'
+import { cleanTitle } from './title'
 
 export async function digest(data: ArrayBuffer) {
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', data))
@@ -60,26 +61,31 @@ async function pdfMetadata(data: ArrayBuffer): Promise<Metadata> {
   } finally { await task.destroy() }
 }
 const colors = ['#394f40', '#8b523b', '#344958', '#76505a', '#79603b', '#41625a', '#715240']
-export async function importFile(file: File, attachId?: number): Promise<string> {
+/** id is the book now holding the file (also for a duplicate); suggestion is a cleaner title to offer, the original filename is kept either way. */
+export interface Imported { message: string; id?: number; suggestion?: string }
+export async function importFile(file: File, attachId?: number): Promise<Imported> {
   const format = file.name.split('.').pop()?.toLowerCase() as Format
   if (format !== 'pdf' && format !== 'epub') throw new Error('Choose a PDF or EPUB file.')
   const data = await file.arrayBuffer()
   const head = new TextDecoder().decode(data.slice(0, 1024))
   if (format === 'pdf' ? !head.includes('%PDF-') : !head.startsWith('PK')) throw new Error('The contents do not match the file extension.')
   const hash = await digest(data)
-  if (await db.books.where({ hash }).first()) return 'Already on your shelf'
+  const duplicate = async () => { const book = await db.books.where({ hash }).first(); return book && { message: 'Already on your shelf', id: book.id } }
+  const early = await duplicate()
+  if (early) return early
   const metadata = await (format === 'pdf' ? pdfMetadata(data) : epubMetadata(data))
   const title = metadata.title?.trim() || file.name.replace(/\.[^.]+$/, '')
   const record = { title, author: metadata.author?.trim() || '', color: colors[parseInt(hash.slice(0, 2), 16) % colors.length],
     format, filename: file.name, added: Date.now(), hash }
   return db.transaction('rw', db.books, db.files, db.art, async () => {
-    if (await db.books.where({ hash }).first()) return 'Already on your shelf'
+    const late = await duplicate()
+    if (late) return late
     const legacy = attachId && await db.books.get(attachId)
     if (attachId && (!legacy || legacy.format)) throw new Error('This shelf entry already has a file.')
     const id = attachId || await db.books.add(record as Book)
     if (attachId) await db.books.update(id, record)
     await db.files.put({ id, blob: file })
     if (metadata.cover) await db.art.put({ id, blob: metadata.cover })
-    return metadata.title && metadata.author ? 'Imported' : 'Imported with available metadata'
+    return { message: metadata.title && metadata.author ? 'Imported' : 'Imported with available metadata', id, suggestion: cleanTitle(title) }
   })
 }

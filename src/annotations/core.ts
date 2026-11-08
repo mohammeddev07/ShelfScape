@@ -1,4 +1,4 @@
-import type { Annotation, HighlightColor } from '../db'
+import type { Annotation, Bookmark, HighlightColor, Location } from '../db'
 
 export const COLORS: Record<HighlightColor, { label: string; fill: string }> = {
   yellow: { label: 'Important', fill: '#f2c94c' },
@@ -21,10 +21,18 @@ export function findQuote(source: string, quote: string, offset?: number): numbe
   return best
 }
 
-export const sortAnnotations = (list: Annotation[]): Annotation[] =>
+export const sortAnnotations = <T extends Annotation | Bookmark>(list: T[]): T[] =>
   [...list].sort((a, b) => a.order - b.order || a.created - b.created)
 
-export function toMarkdown(book: { title: string; author: string }, list: Annotation[], exported: number): string {
+/** Same bookmarked spot: the same PDF page or EPUB position, and the same passage (or both none).
+ *  A PDF passage also needs the same offset, since identical text can occur twice on one page; page bookmarks ignore it. */
+export function sameSpot(a: Location, b: Location): boolean {
+  const place = a.format === 'pdf' ? b.format === 'pdf' && a.page === b.page : b.format === 'epub' && a.cfi === b.cfi
+  const offset = a.format !== 'pdf' || b.format !== 'pdf' || !a.text || a.offset === b.offset
+  return place && (a.text ?? '') === (b.text ?? '') && offset
+}
+
+export function toMarkdown(book: { title: string; author: string }, list: Annotation[], exported: number, bookmarks: Bookmark[] = []): string {
   const lines = [`# ${book.title}`, `${book.author ? `_${book.author}_ · ` : ''}Exported ${new Date(exported).toLocaleDateString('en-CA')}`, '']
   const sorted = sortAnnotations(list)
   for (const color of COLOR_ORDER) {
@@ -35,6 +43,11 @@ export function toMarkdown(book: { title: string; author: string }, list: Annota
       for (const q of (a.location.text ?? '').split(/\r?\n/)) lines.push(`> ${q}`)
       lines.push('', `${a.where}${a.note ? ` · ${a.note.replace(/\r?\n/g, '\n  ')}` : ''}`, '')
     }
+  }
+  if (bookmarks.length) {
+    lines.push('## Bookmarks')
+    for (const b of sortAnnotations(bookmarks)) lines.push(`- ${b.where}${b.excerpt ? `: ${b.excerpt.replace(/\s+/g, ' ')}` : ''}`)
+    lines.push('')
   }
   return lines.join('\n')
 }

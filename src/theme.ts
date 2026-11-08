@@ -9,7 +9,7 @@ const resolve = (): 'light' | 'dark' => { const t = getTheme(); return t === 'sy
 export function applyTheme(): 'light' | 'dark' {
   const mode = resolve()
   document.documentElement.dataset.theme = mode
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#111113' : '#f5f5f3')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#0e1512' : '#eef1ec')
   return mode
 }
 export function setTheme(t: Theme) {
