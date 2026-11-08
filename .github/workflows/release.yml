@@ -90,7 +90,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # --branch=release is the project's production branch, so this is the live deployment.
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }} --branch=release--commit-hash=${{ github.sha }} --commit-dirty=true
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }} --branch=release --commit-hash=${{ github.sha }} --commit-dirty=true
 
   # After the deploy succeeds, so a failed deploy leaves no tag behind and
   # re-running the workflow picks the same version.
