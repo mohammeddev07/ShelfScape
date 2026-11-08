@@ -5,7 +5,7 @@ name: Release
 # (e.g. v0.1.1); that run waits for approval.
 #
 # One-time setup:
-#   Cloudflare: create a Pages project (Direct Upload, production branch `main`).
+#   Cloudflare: create a Pages project (Direct Upload, production branch `release`).
 #   Repo secrets:   CLOUDFLARE_API_TOKEN (Pages: Edit), CLOUDFLARE_ACCOUNT_ID
 #   Repo variable:  CLOUDFLARE_PROJECT_NAME
 #   Repo environments: `production`, and `production-rollback` with required reviewers.
@@ -89,8 +89,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # --branch=main makes it the production deployment.
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }} --branch=main --commit-hash=${{ github.sha }} --commit-dirty=true
+          # --branch=release is the project's production branch, so this is the live deployment.
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }} --branch=release--commit-hash=${{ github.sha }} --commit-dirty=true
 
   # After the deploy succeeds, so a failed deploy leaves no tag behind and
   # re-running the workflow picks the same version.
